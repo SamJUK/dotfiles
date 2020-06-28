@@ -1,9 +1,0 @@
-[user]
-	email = sam@samdjames.uk
-	name = Sam James
-	gpgsign = true
-	signingkey = 483B430F
-[gpg]
-	program = gpg2
-[commit]
-	gpgsign = true

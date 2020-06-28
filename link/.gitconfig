@@ -1,0 +1,20 @@
+[user]
+	email = sam@samdjames.uk
+	name = Sam James
+	gpgsign = true
+	signingkey = 483B430F
+[core]
+  autocrlf = input
+  whitespace = fix,space-before-tab,tab-in-indent,trailing-space
+[apply]
+  whitespace = fix
+[alias]
+  br = branch
+  ci = commit
+  co = checkout
+  df = diff
+  st = status
+[gpg]
+	program = gpg2
+[commit]
+	gpgsign = true
