@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Time a request: DNS, connect, TLS, first byte, total, plus status and size.
+# Usage: curlp [curl options] URL
+set -euo pipefail
+
+(( $# )) || { echo "Usage: $(basename "$0") [curl options] URL" >&2; exit 2; }
+
+curl -sS -o /dev/null -w '
+          http_code:  %{http_code}
+      size_download:  %{size_download} bytes
+    time_namelookup:  %{time_namelookup}
+       time_connect:  %{time_connect}
+    time_appconnect:  %{time_appconnect}
+   time_pretransfer:  %{time_pretransfer}
+      time_redirect:  %{time_redirect}
+ time_starttransfer:  %{time_starttransfer}
+                    ----------
+         time_total:  %{time_total}
+' "$@"

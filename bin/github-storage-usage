@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Actions cache and artifact storage per repository, largest first, as CSV.
+# Usage: github-storage-usage [owner]   (default: the authenticated user)
+set -euo pipefail
+export GH_PAGER=cat
+
+owner=${1:-$(gh api user --jq .login)}
+repos=$(gh repo list "$owner" --limit 1000 --json name --jq '.[].name')
+
+echo "Repo,Cache_MB,Artifacts_MB,Total_MB"
+while read -r repo; do
+  [[ -n "$repo" ]] || continue
+  cache=$(gh api "repos/$owner/$repo/actions/cache/usage" --jq .active_caches_size_in_bytes) &&
+    artifacts=$(gh api --paginate "repos/$owner/$repo/actions/artifacts?per_page=100" \
+      --jq '.artifacts[].size_in_bytes' | awk '{ b += $1 } END { print b + 0 }') ||
+    { echo "skipped $repo" >&2; continue; }
+  awk -v r="$repo" -v c="$cache" -v a="$artifacts" \
+    'BEGIN { printf "%s,%.1f,%.1f,%.1f\n", r, c / 1048576, a / 1048576, (c + a) / 1048576 }'
+done <<< "$repos" | sort -t, -k4 -rn

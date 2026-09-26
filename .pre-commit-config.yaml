@@ -1,0 +1,12 @@
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.24.3
+    hooks:
+      - id: gitleaks
+  - repo: local
+    hooks:
+      - id: lint-skills
+        name: lint agent skills
+        entry: python3 scripts/lint-skills.py
+        language: system
+        files: (^|/)SKILL\.md$

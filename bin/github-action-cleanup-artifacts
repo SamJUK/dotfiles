@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Delete every Actions artifact in a repository (default: the current one) to free storage quota
+# now, rather than waiting for retention to expire them.
+# Usage: github-action-cleanup-artifacts [owner/repo]
+set -euo pipefail
+export GH_PAGER=cat
+
+repo=${1:-$(gh repo view --json nameWithOwner --jq .nameWithOwner)}
+artifacts=$(gh api --paginate "repos/$repo/actions/artifacts?per_page=100" \
+  --jq '.artifacts[] | "\(.id) \(.size_in_bytes)"')
+[[ -n "$artifacts" ]] || { echo "No artifacts in $repo"; exit 0; }
+
+summary=$(awk '{ n++; b += $2 } END { printf "%d artifacts (%.1f MiB)", n, b / 1048576 }' <<< "$artifacts")
+read -r -p "Delete $summary from $repo? [y/N] " answer
+[[ "$answer" == [yY] ]] || { echo "Aborted"; exit 1; }
+
+while read -r id _; do
+  echo "Deleting artifact $id"
+  gh api --silent -X DELETE "repos/$repo/actions/artifacts/$id"
+done <<< "$artifacts"

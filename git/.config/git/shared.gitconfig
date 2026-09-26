@@ -1,0 +1,32 @@
+[user]
+    useConfigOnly = true
+[core]
+    autocrlf = input
+    whitespace = fix,space-before-tab,tab-in-indent,trailing-space
+[apply]
+    whitespace = fix
+[alias]
+    br = branch
+    ci = commit
+    co = checkout
+    df = diff
+    st = status
+    lg = log --oneline --date=format:'%d-%m-%Y [%a] %H:%M:%S' --pretty=format:'%C(red)%h %C(cyan)%ad %C(bold blue)%aN%C(reset)%C(bold yellow)%d %C(reset)%s'
+[pull]
+    rebase = false
+[push]
+    autoSetupRemote = true
+[column]
+    ui = auto
+[branch]
+    sort = -committerdate
+[filter "lfs"]
+    required = true
+    clean = git-lfs clean -- %f
+    smudge = git-lfs smudge -- %f
+    process = git-lfs filter-process
+[fetch]
+    prune = true
+
+[init]
+    defaultBranch = master

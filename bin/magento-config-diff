@@ -1,0 +1,74 @@
+#!/usr/bin/env python3
+"""Compare the modules in two Magento app/etc/config.php files without executing them.
+
+Each source is a file path, a git ref:path, a bare git ref (uses app/etc/config.php), or - for stdin.
+    magento-config-diff                           # HEAD vs working tree
+    magento-config-diff origin/main               # origin/main vs working tree
+    magento-config-diff origin/main pr-head       # between two refs, no checkout needed
+"""
+import argparse
+import json
+import os
+import re
+import subprocess
+import sys
+
+CONFIG = 'app/etc/config.php'
+MODULES = re.compile(r"'modules'\s*=>\s*\[(.*?)\]", re.S)
+ENTRY = re.compile(r"'([A-Za-z0-9]+_[A-Za-z0-9]+)'\s*=>\s*([01])\b")
+
+
+def read(source):
+    if source == '-':
+        return sys.stdin.read()
+    if os.path.isfile(source):
+        with open(source) as stream:
+            return stream.read()
+    spec = source if ':' in source else f'{source}:{CONFIG}'
+    result = subprocess.run(['git', 'show', spec], capture_output=True, text=True)
+    if result.returncode:
+        sys.exit(f'Cannot read {spec}: {result.stderr.strip()}')
+    return result.stdout
+
+
+def modules(source):
+    block = MODULES.search(read(source))
+    if not block:
+        sys.exit(f'No modules array found in {source}')
+    return {name: int(state) for name, state in ENTRY.findall(block.group(1))}
+
+
+def compare(old, new):
+    return {
+        'added': sorted(new.keys() - old.keys()),
+        'removed': sorted(old.keys() - new.keys()),
+        'enabled': sorted(m for m in old.keys() & new.keys() if not old[m] and new[m]),
+        'disabled': sorted(m for m in old.keys() & new.keys() if old[m] and not new[m]),
+    }
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('base', nargs='?', default='HEAD')
+    parser.add_argument('target', nargs='?', default=CONFIG)
+    parser.add_argument('-f', '--format', choices=['list', 'markdown', 'json'], default='list')
+    args = parser.parse_args()
+    diff = compare(modules(args.base), modules(args.target))
+    if args.format == 'json':
+        print(json.dumps(diff, indent=2))
+    elif not any(diff.values()):
+        print(f'No module changes between {args.base} and {args.target}.')
+    elif args.format == 'markdown':
+        print(f'| Change | Module |\n|---|---|')
+        for change, names in diff.items():
+            for name in names:
+                print(f'| {change} | `{name}` |')
+    else:
+        for change, names in diff.items():
+            if names:
+                print(f'{change.capitalize()}:\n' + ''.join(f'  {n}\n' for n in names), end='')
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

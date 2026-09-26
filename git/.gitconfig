@@ -1,0 +1,3 @@
+[include]
+    path = ~/.config/git/shared.gitconfig
+    path = ~/.config/git/personal.gitconfig

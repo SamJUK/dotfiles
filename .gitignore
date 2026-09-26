@@ -1,0 +1,5 @@
+.DS_Store
+__pycache__/
+
+# global ignore excludes CLAUDE.md in projects; this repo ships one
+!CLAUDE.md

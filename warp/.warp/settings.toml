@@ -1,0 +1,112 @@
+[appearance]
+
+[appearance.themes]
+system_theme = false
+theme = "phenomenon"
+
+[appearance.vertical_tabs]
+enabled = false
+
+[appearance.text]
+notebook_font_size = 14.0
+font_size = 13.0
+
+[appearance.window]
+zoom_level = 125
+
+[general]
+default_session_mode = "terminal"
+
+[agents]
+cloud_conversation_storage_enabled = true
+
+[agents.third_party]
+should_render_cli_agent_toolbar = true
+
+[agents.warp_agent]
+is_any_ai_enabled = true
+
+[agents.warp_agent.other]
+show_agent_notifications = true
+show_conversation_history = true
+
+[agents.warp_agent.input]
+nld_in_terminal_enabled = false
+
+[agents.execution_profiles]
+
+[agents.execution_profiles.default]
+apply_code_diffs = "agent_decides"
+ask_user_question = "always_ask"
+autosync_plans_to_warp_drive = true
+command_allowlist = []
+command_denylist = [
+  'bash(\s.*)?',
+  'fish(\s.*)?',
+  'pwsh(\s.*)?',
+  'sh(\s.*)?',
+  'zsh(\s.*)?',
+  'curl(\s.*)?',
+  'eval(\s.*)?',
+  'exec(\s.*)?',
+  'source(\s.*)?',
+  'wget(\s.*)?',
+  'dig(\s.*)?',
+  'nslookup(\s.*)?',
+  'host(\s.*)?',
+  'ssh(\s.*)?',
+  'scp(\s.*)?',
+  'rsync(\s.*)?',
+  'telnet(\s.*)?',
+  'rm(\s.*)?',
+]
+computer_use = "never"
+directory_allowlist = []
+execute_commands = "always_ask"
+mcp_allowlist = []
+mcp_denylist = []
+mcp_permissions = "agent_decides"
+name = "Default"
+read_files = "agent_decides"
+run_agents = "always_ask"
+web_search_enabled = true
+write_to_pty = "always_ask"
+
+[code]
+
+[code.editor]
+show_code_review_button = true
+show_project_explorer = true
+show_global_search = true
+
+[warp_drive]
+enabled = true
+
+[notifications]
+toast_duration_secs = 8
+
+[notifications.preferences]
+is_agent_task_completed_enabled = true
+is_long_running_enabled = true
+is_needs_attention_enabled = true
+is_password_prompt_enabled = true
+long_running_threshold = 30
+mode = "dismissed"
+play_notification_sound = true
+
+[terminal]
+
+[terminal.input]
+input_box_type_setting = "universal"
+
+[account]
+is_settings_sync_enabled = true
+
+[privacy]
+telemetry_enabled = true
+crash_reporting_enabled = true
+
+[warpify]
+
+[warpify.ssh]
+ssh_extension_install_mode = "never_install"

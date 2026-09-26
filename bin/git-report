@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# List recent commits across every git repository under a folder.
+set -euo pipefail
+
+usage() {
+  cat >&2 <<U
+Usage: $(basename "$0") [--mine] <folder> [since]
+  since   week | biweek | month, or anything git log --since accepts (default: week)
+  --mine  only commits by each repository's configured user.email
+U
+  exit 2
+}
+
+mine=""; args=()
+for arg; do
+  case $arg in
+    --mine) mine=1 ;;
+    -h|--help) usage ;;
+    *) args+=("$arg") ;;
+  esac
+done
+folder="${args[0]:-}"
+[[ -d "$folder" ]] || usage
+case "${args[1]:-week}" in
+  week) since="1 week ago" ;;
+  biweek|biweekly) since="2 weeks ago" ;;
+  month) since="1 month ago" ;;
+  *) since=${args[1]} ;;
+esac
+
+find "$folder" \( -name vendor -o -name node_modules \) -prune -o -type d -name .git -print |
+while IFS= read -r gitdir; do
+  repo=$(dirname "$gitdir")
+  filter=()
+  if [[ -n $mine ]]; then
+    email=$(git -C "$repo" config user.email) || continue
+    filter=(--fixed-strings --author="$email")
+  fi
+  git -C "$repo" --no-pager log --all --since="$since" ${filter[@]+"${filter[@]}"} \
+    --pretty=tformat:"[$(basename "$repo")] %C(dim green)#%h %ae %ai - %s%Creset" 2>/dev/null || true
+done

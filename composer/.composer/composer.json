@@ -1,0 +1,27 @@
+{
+  "require": {
+    "nunomaduro/phpinsights": "^2.1",
+    "phpcompatibility/php-compatibility": "^9.3",
+    "deployer/deployer": "^7.4",
+    "phpunit/phpunit": "*",
+    "ion-bazan/composer-diff": "^1.13",
+    "cyclonedx/cyclonedx-php-composer": "^6.0"
+  },
+  "require-dev": {
+    "deployer/recipes": "^6.2",
+    "phpstan/phpstan": "^1.10"
+  },
+  "config": {
+    "allow-plugins": {
+      "dealerdirect/phpcodesniffer-composer-installer": true,
+      "ion-bazan/composer-diff": true,
+      "cyclonedx/cyclonedx-php-composer": true
+    }
+  },
+  "repositories": {
+    "0": {
+      "type": "composer",
+      "url": "https://repo.magento.com/"
+    }
+  }
+}

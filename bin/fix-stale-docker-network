@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Remove a network that fails with "has active endpoints" because its containers are gone.
+# Endpoints of containers that still exist are left alone, so a network in use is never removed.
+set -euo pipefail
+
+network="${1:?Usage: $(basename "$0") <network-name>}"
+
+endpoints=$(docker network inspect "$network" \
+  --format '{{range $id, $v := .Containers}}{{$id}} {{$v.Name}}{{"\n"}}{{end}}')
+
+while read -r id name; do
+  [[ -n "$id" ]] || continue
+  if docker container inspect "$id" >/dev/null 2>&1; then
+    echo "in use by $name, leaving it attached" >&2
+    continue
+  fi
+  echo "disconnecting stale endpoint $name"
+  docker network disconnect -f "$network" "$name"
+done <<< "$endpoints"
+
+docker network rm "$network"

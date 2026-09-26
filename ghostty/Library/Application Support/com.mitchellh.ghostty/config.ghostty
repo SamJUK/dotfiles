@@ -1,0 +1,41 @@
+# ~/Library/Application Support/com.mitchellh.ghostty/config.ghostty
+
+# --- Appearance ---
+font-family = JetBrainsMono Nerd Font Mono
+font-size = 18
+
+theme = Seti
+
+window-padding-x = 10
+window-padding-y = 8
+window-decoration = true
+
+macos-titlebar-style = tabs
+
+# Slightly nicer cursor
+cursor-style = bar
+cursor-style-blink = false
+
+# --- Behaviour ---
+copy-on-select = false
+confirm-close-surface = false
+
+# --- Shell ---
+shell-integration = detect
+
+# --- macOS ---
+macos-option-as-alt = true
+
+# Quick terminal — one of Ghostty's nicest features
+# Global: needs Accessibility permission for Ghostty in System Settings.
+keybind = global:opt+space=toggle_quick_terminal
+quick-terminal-position = top
+quick-terminal-size = 40%
+
+# --- Keys (rest of iTerm "natural text editing" preset) ---
+keybind = delete=text:\x04
+keybind = alt+delete=text:\x1bd
+
+
+# Claude spams bells when terminal not focused.
+bell-features = no

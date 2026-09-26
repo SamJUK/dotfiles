@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# List listening TCP ports, or what holds one port (plus the container, if Docker publishes it).
+# Usage: port [port]   (other users' processes need sudo)
+set -uo pipefail
+
+lsof -Pn -iTCP${1:+:$1} -sTCP:LISTEN
+status=$?
+
+if [[ -n "${1:-}" ]] && command -v docker >/dev/null; then
+  docker ps --filter "publish=$1" \
+    --format 'container: {{.Names}}  project: {{.Label "com.docker.compose.project"}}  ports: {{.Ports}}' 2>/dev/null
+fi
+exit $status
