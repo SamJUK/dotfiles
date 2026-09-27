@@ -194,17 +194,20 @@ class InstallTests(unittest.TestCase):
         self.assertEqual(len(plan.saved), 2)
 
 
-    def test_codex_instructions_linked_when_absent_or_already_wired(self):
+    def test_agent_instructions_linked_when_absent_or_already_wired(self):
         self.apply(self.plan())
-        codex = self.home / '.codex/AGENTS.md'
-        self.assertTrue(codex.is_symlink())
-        self.assertEqual(codex.read_text(), 'Shared instructions\n')
-        codex.unlink()
-        codex.symlink_to('../.agents/AGENTS.md')
+        wired = {'.codex/AGENTS.md': '../.agents/AGENTS.md', '.pi/agent/AGENTS.md': '../../.agents/AGENTS.md'}
+        for path, target in wired.items():
+            agent = self.home / path
+            self.assertTrue(agent.is_symlink())
+            self.assertEqual(agent.read_text(), 'Shared instructions\n')
+            agent.unlink()
+            agent.symlink_to(target)
         plan = self.plan()
-        self.assertNotIn(installer.physical(codex), plan.entries)
         self.apply(plan)
-        self.assertEqual(os.readlink(codex), '../.agents/AGENTS.md')
+        for path, target in wired.items():
+            self.assertNotIn(installer.physical(self.home / path), plan.entries)
+            self.assertEqual(os.readlink(self.home / path), target)
 
     def test_existing_claude_import_is_not_duplicated(self):
         self.write(self.home / '.claude/CLAUDE.md', 'Mine\n@~/.agents/AGENTS.md\n')

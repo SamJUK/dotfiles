@@ -14,7 +14,7 @@ import sys
 import tempfile
 from datetime import datetime
 
-PACKAGES = 'zsh git ansible nvim ghostty warp btop sublime vscode composer agents claude'.split()
+PACKAGES = 'zsh git ansible nvim ghostty warp btop sublime vscode composer agents claude pi'.split()
 INTEGRATIONS = {'.gitconfig', '.claude/CLAUDE.md'}
 VENDOR_DIR = '.local/share/dotfiles/vendor'
 SAFE_NAME = re.compile(r'[A-Za-z0-9._-]+')
@@ -382,16 +382,16 @@ def build(home, private, work):
     plan.integrate(home / '.gitconfig', (PUBLIC / 'git/.gitconfig').read_text())
     plan.integrate(home / '.claude/CLAUDE.md', '@~/.agents/AGENTS.md', markdown=True,
                    equivalent=PUBLIC / 'claude/.claude/CLAUDE.md')
-    # Codex reads exactly one global file: link it when free so the shared instructions are loaded directly.
-    codex = home / '.codex/AGENTS.md'
-    if codex.is_symlink() and Path(os.path.normpath(codex.parent / os.readlink(codex))) == home / '.agents/AGENTS.md':
-        pass
-    elif not present(codex):
-        plan.link(PUBLIC / 'agents/.agents/AGENTS.md', codex, str(PUBLIC / 'agents'))
-    else:
-        plan.integrate(codex,
-                       'Read `~/.agents/AGENTS.md` and `~/.agents/rules/*.md` and follow their instructions.',
-                       markdown=True, equivalent=PUBLIC / 'agents/.agents/AGENTS.md')
+    # Codex and pi read one global file each: link it when free so the shared instructions are loaded directly.
+    for agent in (home / '.codex/AGENTS.md', home / '.pi/agent/AGENTS.md'):
+        if agent.is_symlink() and Path(os.path.normpath(agent.parent / os.readlink(agent))) == home / '.agents/AGENTS.md':
+            pass
+        elif not present(agent):
+            plan.link(PUBLIC / 'agents/.agents/AGENTS.md', agent, str(PUBLIC / 'agents'))
+        else:
+            plan.integrate(agent,
+                           'Read `~/.agents/AGENTS.md` and `~/.agents/rules/*.md` and follow their instructions.',
+                           markdown=True, equivalent=PUBLIC / 'agents/.agents/AGENTS.md')
     plan.inspect()
     return plan
 

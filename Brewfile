@@ -11,6 +11,9 @@ tap "roshie548/tap"
 tap "siderolabs/tap"
 tap "teamookla/speedtest"
 tap "wardenenv/warden"
+# Local AI
+cask "lm-studio"
+brew "pi-coding-agent"
 # Static analysis and lint tool, for (ba)sh scripts
 brew "shellcheck"
 # Static checker for GitHub Actions workflow files
