@@ -138,9 +138,10 @@ packages — any uncommitted edits inside them are lost. Check before running.
 
 ## Ad-hoc patches (`--patch`)
 
-For out-of-band drops that never reach the registry — a `VULN-xxxxx` bundle downloaded from
-Adobe, a hotfix from support, a vendor's own patch. Same detection, splitting and wiring as the
-registry path; the only difference is where the diff came from.
+For drops that never reach the registry: a hotfix from support, a vendor's own patch, or a
+`VULN-xxxxx` bundle before Adobe adds it to the registry. Once a VULN patch has a registry entry
+(`248p5-VULN-39341-CE`), the default run fetches it like any other. Same detection, splitting and
+wiring as the registry path; the only difference is where the diff came from.
 
 `PATH` is a single `.patch`/`.diff` file, or a directory of them. Adobe ships **one file per
 patch level** in a bundle and encodes the level in the filename

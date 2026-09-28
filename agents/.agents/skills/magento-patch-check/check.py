@@ -107,7 +107,7 @@ def pkg_of(path):
 
 
 def fetch_from_bundle(entry):
-    """Adobe ships one zip per patch level per month; the flat per-file URL is gone.
+    """Monthly patches also ship as one zip per patch level per month. Fallback only.
 
     ponytail: name is derivable from the entry itself - applies_to + released.
     """
@@ -121,8 +121,16 @@ def fetch_from_bundle(entry):
         for n in z.namelist():
             if os.path.splitext(n.rsplit("/", 1)[-1])[0] == stem:
                 return z.read(n)
-    raise RuntimeError(f"{entry['file_name']} is not in the monthly bundle {name}. Out-of-band patches "
-                       "ship separately: download it and run with --patch.")
+    raise RuntimeError(f"{entry['file_name']} is neither at its flat URL nor in the monthly bundle {name}. "
+                       "Download it by hand and run with --patch.")
+
+
+def download(entry):
+    """The flat URL serves monthly and out-of-band VULN patches alike; VULN ones are never bundled."""
+    try:
+        return get(f"https://repo.magento.com/patch/{entry['file_name']}", binary=True)
+    except urllib.error.HTTPError:
+        return fetch_from_bundle(entry)
 
 
 def read(path):
@@ -137,7 +145,7 @@ def fetch_patch(entry):
     os.makedirs(CACHE, exist_ok=True)
     path = os.path.join(CACHE, name)
     if not os.path.exists(path) or hashlib.sha256(Path(path).read_bytes()).hexdigest() != entry["sha256"]:
-        raw = fetch_from_bundle(entry)
+        raw = download(entry)
         if hashlib.sha256(raw).hexdigest() != entry["sha256"]:
             raise RuntimeError(f"sha256 mismatch for {entry['file_name']}")
         with open(path, "wb") as f:
