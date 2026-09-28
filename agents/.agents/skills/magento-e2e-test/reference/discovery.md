@@ -44,7 +44,10 @@ Only build fixtures for types the catalogue really has.
 SELECT type_id, COUNT(*) n FROM catalog_product_entity GROUP BY type_id ORDER BY n DESC;
 ```
 
-### Simple — in stock, with a clean URL
+### Simple — in stock, enabled, visible, with a clean URL
+
+In stock alone is not enough: disabled, not-visible-individually and off-website products all
+404 on the storefront.
 
 ```sql
 SELECT e.sku, r.request_path
@@ -53,10 +56,22 @@ JOIN cataloginventory_stock_item si
      ON si.product_id = e.entity_id AND si.is_in_stock = 1 AND si.qty > 5
 JOIN url_rewrite r
      ON r.entity_id = e.entity_id AND r.entity_type = 'product'
-    AND r.store_id = 1 AND r.request_path NOT LIKE '%/%'
+    AND r.store_id = 1 AND r.redirect_type = 0 AND r.request_path NOT LIKE '%/%'
+JOIN catalog_product_website pw ON pw.product_id = e.entity_id AND pw.website_id = 1
+JOIN catalog_product_entity_int st
+     ON st.entity_id = e.entity_id AND st.store_id = 0 AND st.value = 1
+    AND st.attribute_id = (SELECT attribute_id FROM eav_attribute
+                           WHERE attribute_code = 'status' AND entity_type_id = 4)
+JOIN catalog_product_entity_int vi
+     ON vi.entity_id = e.entity_id AND vi.store_id = 0 AND vi.value IN (2, 3, 4)
+    AND vi.attribute_id = (SELECT attribute_id FROM eav_attribute
+                           WHERE attribute_code = 'visibility' AND entity_type_id = 4)
 WHERE e.type_id = 'simple'
 LIMIT 5;
 ```
+
+On Adobe Commerce the `_int` tables key on `row_id`, not `entity_id`, and content staging can
+leave several rows per product. Join on `row_id` and pick the current row.
 
 ### Configurable — must have SALABLE CHILDREN
 
@@ -97,14 +112,23 @@ price rendering.
 
 ### Categories, per store
 
+Leaf categories with the most products. Top-level categories are often landing pages with no
+product grid.
+
 ```sql
-SELECT request_path FROM url_rewrite
-WHERE entity_type = 'category' AND store_id = 1 AND request_path NOT LIKE '%/%'
+SELECT r.request_path, COUNT(cp.product_id) AS products
+FROM url_rewrite r
+JOIN catalog_category_entity c ON c.entity_id = r.entity_id AND c.children_count = 0
+JOIN catalog_category_product cp ON cp.category_id = c.entity_id
+WHERE r.entity_type = 'category' AND r.store_id = 1 AND r.redirect_type = 0
+GROUP BY r.request_path
+ORDER BY products DESC
 LIMIT 5;
 ```
 
-**Verify every candidate URL with a real request before using it.** Rewrites exist for
-categories that 404 — one bad rewrite is not a store-wide break, but it will fail the run.
+**Verify every candidate URL with a real request, and check the page lists products**, not just
+that it returns 200. Rewrites exist for categories that 404 — one bad rewrite is not a
+store-wide break, but it will fail the run.
 
 ---
 
@@ -175,6 +199,47 @@ WHERE path IN (
 
 ---
 
+## Extra required registration fields
+
+The harness fills first name, last name, email and password. Trade and B2B stores often add
+more (a GDC number, an Amasty company block), and registration then fails validation. List the
+required fields on the live form, joining lines first because Hyvä spreads attributes over
+several:
+
+```bash
+curl -sk "$BASE/customer/account/create/" | tr '\n' ' ' \
+  | grep -oE '<(input|select)[^>]*required[^>]*>' | grep -oE ' name="[^"]+"' | sort -u
+```
+
+Ignore the standard fields and the header login popup's `username`. Put the rest in
+`registerFields`, keyed by selector, in fill order: a country before its region. The harness
+fills each one that is visible and skips the rest.
+
+---
+
+## Stores that gate checkout on account approval
+
+B2B modules such as Amasty Company Account send an unapproved customer from `/checkout/` back
+to the cart with "You do not have permission to proceed the checkout". A freshly registered
+customer can then never place an order.
+
+Pick an existing customer whose account is approved, give it a known password, and add it to
+`discovery.json` as `customer`. Prefer a test account over a real customer's.
+
+```sql
+-- Amasty Company Account: active customers in an active company
+SELECT c.email FROM customer_entity c
+JOIN amasty_company_account_customer ac ON ac.customer_id = c.entity_id AND ac.status = 1
+JOIN amasty_company_account_company co ON co.company_id = ac.company_id AND co.status = 1
+WHERE c.is_active = 1 LIMIT 5;
+```
+
+```bash
+n98-magerun customer:change-password <email> <password> <website-code>
+```
+
+---
+
 ## Admin access
 
 Create a throwaway admin for the run and **delete it afterwards**:
@@ -213,6 +278,8 @@ Phase 9 does not finish until this row is gone.
     "searchTerm": "shirt"
   },
   "checkout": { "type": "luma" },
+  "customer": { "email": "approved.buyer@example.test", "pass": "…" },
+  "registerFields": { "#gdc_number": "123456", "[name=\"company[country_id]\"]": "GB" },
   "address": {
     "firstname": "Upgrade", "lastname": "Tester",
     "street": "1 Example Street", "city": "Exampletown",

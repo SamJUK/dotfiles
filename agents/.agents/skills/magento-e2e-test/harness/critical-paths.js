@@ -18,7 +18,8 @@
  * Needs playwright-core. If the project has no local install, a global @playwright/test
  * bundles one:
  *   NODE_PATH=$(npm root -g)/@playwright/test/node_modules node critical-paths.js
- * Set CHROME_PATH if the bundled browser revision does not match.
+ * Falls back to the installed Google Chrome when the bundled browser revision is missing.
+ * CHROME_PATH overrides both.
  */
 const { chromium } = require('playwright-core');
 const { execFileSync } = require('child_process');
@@ -94,8 +95,12 @@ const productCount = p => p.locator('.product-item, li.item.product').count();
 
 (async () => {
   fs.mkdirSync(OUT, { recursive: true });
-  const b = await chromium.launch(
-    process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {});
+  const b = process.env.CHROME_PATH
+    ? await chromium.launch({ executablePath: process.env.CHROME_PATH })
+    : await chromium.launch().catch(e => {
+        if (!/Executable doesn't exist/.test(e.message)) throw e;
+        return chromium.launch({ channel: 'chrome' });
+      });
   const ctx = await b.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1440, height: 1100 } });
   ctx.setDefaultTimeout(60000);
   ctx.setDefaultNavigationTimeout(180000);
@@ -199,6 +204,13 @@ const productCount = p => p.locator('.product-item, li.item.product').count();
     await p.fill('#email_address', CUST.email);
     await p.fill('#password', CUST.pass);
     await p.fill('#password-confirmation', CUST.pass);
+    // store-specific required fields (trade numbers, B2B company blocks), in discovery order
+    for (const [sel, val] of Object.entries(D.registerFields || {})) {
+      const el = p.locator(sel).first();
+      if (!(await el.isVisible().catch(() => false))) continue;
+      if ((await el.evaluate(e => e.tagName)) === 'SELECT') { await el.selectOption(val); await p.waitForTimeout(1500); }
+      else await el.fill(val);
+    }
     await Promise.all([
       p.waitForNavigation({ waitUntil: 'domcontentloaded' }).catch(() => {}),
       p.locator('button[title="Create an Account"], .action.submit.primary').first().click(),
@@ -214,13 +226,21 @@ const productCount = p => p.locator('.product-item, li.item.product').count();
     return `customer row created${confirmed ? ', email confirmation required (expected)' : ''}`;
   });
 
+  // B2B stores gate checkout on account approval; a new registration cannot order there.
+  // discovery.customer is a pre-approved account used from login onwards.
+  if (D.customer) Object.assign(CUST, D.customer);
+
   await step('customer: log in', async () => {
     sql(`update ${PREFIX}customer_entity set confirmation=NULL where email='${CUST.email}';`);
+    // registration can leave a session behind; the login page redirects to the dashboard while one exists
+    await gotoRetry(p, BASE + '/customer/account/logout/');
+    await p.waitForTimeout(4000);
     await gotoRetry(p, BASE + '/customer/account/login/');
     await dismissCookies(p);
     // two #login-form elements exist (hidden auth popup + page form); 2.4.8 renamed
     // the visible password field. Scope to the visible form, address fields by name.
-    const form = p.locator('form#login-form:visible').first();
+    // Hyvä renders the page form as #customer-login-form; Luma as #login-form (plus a hidden popup copy)
+    const form = p.locator('form#customer-login-form, form#login-form:visible').first();
     await form.locator('input[name="login[username]"]').fill(CUST.email);
     await form.locator('input[name="login[password]"]').fill(CUST.pass);
     await Promise.all([
@@ -289,6 +309,10 @@ const productCount = p => p.locator('.product-item, li.item.product').count();
       await p.waitForTimeout(10000);
     }
 
+    // two-step (Luma) checkout: payment methods only render after Next
+    const next = p.locator('#shipping-method-buttons-container button.continue, button[data-role="opc-continue"]').first();
+    if (await next.isVisible().catch(() => false)) { await next.click(); await p.waitForTimeout(15000); }
+    await shot(p, 'payment-step-' + method);
     if (!(await p.locator(`#${method}`).isChecked().catch(() => false))) {
       const lbl = p.locator(`label[for="${method}"]`).first();
       if (await lbl.isVisible().catch(() => false)) await lbl.click();

@@ -9,6 +9,9 @@ page form. 2.4.8 also renamed the visible password field from `#pass` to `#passw
 added a show-password toggle. Scope to `form#login-form:visible` and address fields by
 `name` (`login[username]`, `login[password]`), which is stable across versions.
 
+On Hyvä the page form is `#customer-login-form`. Hyvä's `#login-form` is the header popup,
+with fields named `username`/`password`, not `login[...]`. Match either id.
+
 ### One Place Order button per payment method
 
 Each payment block renders its own `button.action.primary.checkout`; all are visible, only
@@ -19,6 +22,11 @@ the selected method's is enabled. `.first()` grabs a disabled one. Use
 
 Amasty OSC and similar regenerate element ids per page load. Only `name` attributes are
 stable. Payment method radios keep real ids (`checkmo`, `purchaseorder`).
+
+### Two-step checkout hides payment methods
+
+Luma's checkout, and Hyvä's Luma checkout fallback, render payment methods only after "Next" on
+the shipping step. One-step checkout modules show both at once. Click Next when it is visible.
 
 ### Configurable stock is not parent stock
 
@@ -38,5 +46,10 @@ rendered grid DOM instead.
 `customer/create_account/confirm` means a *successful* registration lands back on the login
 page with a notice. Turn captcha off for the test window and **turn it back on**; clear
 `confirmation` in `customer_entity` to log in.
+
+### Registration logs the customer in
+
+Without email confirmation, a successful registration leaves the customer signed in, and the
+login page redirects to the dashboard. Log out before testing login.
 
 ---
