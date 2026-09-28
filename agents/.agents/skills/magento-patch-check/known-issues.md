@@ -69,17 +69,34 @@ warden db connect -e "select path, scope, value from <prefix>core_config_data wh
 
 ### Fixing it
 
-Revert patch against `magento/module-csp`, 12 files, **package-relative so no `depth`**:
+Adobe's revert patch against `magento/module-csp`, one build per release range. Downloads are
+public, no repo credentials needed:
+
+| Releases | File at `https://repo.magento.com/patch/<file>` |
+|---|---|
+| 2.4.8-p3 to p5 | `Revert-AC-15165-2-4-8-p3-composer.zip` |
+| 2.4.7-p8 to p10, 2.4.6-p13 to p15 | `Revert-AC-15165-2-4-7-p8-2-4-6-p13-composer.zip` |
+| 2.4.5-p15 to p17 | `Revert-AC-15165-2-4-5-p15-composer.zip` |
+
+The diffs are root-relative (`vendor/magento/module-csp/...`). Strip that prefix so cweagans
+applies them package-relative. Exclude the `__MACOSX` resource fork, which breaks `sed`:
+
+```bash
+mkdir -p patches/composer/revert-ac-15165
+unzip -p Revert-AC-15165-2-4-8-p3-composer.zip '*.patch' -x '__MACOSX/*' \
+  | sed -E 's#(a|b)/vendor/magento/module-csp/#\1/#g' \
+  > patches/composer/revert-ac-15165/magento-module-csp.patch
+```
 
 ```json
 "magento/module-csp": {
-    "Revert AC-15165 - fixes SRI hash corruption with JS bundling (ka-27997)":
-        "patches/revert-AC-15165-sri-hash-corruption.patch"
+    "Revert-AC-15165: SRI hashes for bundled/minified JS (ka-27997)":
+        "patches/composer/revert-ac-15165/magento-module-csp.patch"
 }
 ```
 
-Copies of both variants live in client projects that hit ka-27997. Grep their `composer.json`
-`extra.patches` for `AC-15165` to find one rather than rewriting it.
+The Quality Patches Tool lists `Revert-AC-15165` in `patches-info.json` but ships no patch file
+for it (checked in `magento/quality-patches` 1.1.83). Do not look for it there.
 
 **Match the patch to the `magento/module-csp` version, not to the release patch level in the
 filename.** The file named `2.4.8-p3` applies unchanged to a 2.4.8-p5 store, because both ship
@@ -89,10 +106,6 @@ filename.** The file named `2.4.8-p3` applies unchanged to a 2.4.8-p5 store, bec
 grep -m1 '"version"' vendor/magento/module-csp/composer.json
 patch -p1 --dry-run -i <patch> -d vendor/magento/module-csp   # exit 0 = clean
 ```
-
-Adobe publishes **three** version-specific builds of this revert covering the different
-release ranges. If the local copy does not apply, pull the matching one from the KB rather
-than forcing it.
 
 After wiring: `composer patches-relock && composer patches-repatch`, then `setup:di:compile`,
 then re-deploy static content and re-run the detection above.
