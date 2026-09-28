@@ -18,8 +18,8 @@ and say so in the report:
 | If present | Use it for | Fallback |
 |---|---|---|
 | `magento-e2e-test` | phase 2 and 8 before/after runs and comparison | required; stop if missing |
-| `magento-patch-check` | phase 7, isolated security patches | query Adobe's registry directly |
-| `magento-validate-migrations` | migrations applied cold to a fresh database | phase 6 build gate alone |
+| `magento-patch-check` | phase 6, isolated security patches | query Adobe's registry directly |
+| `magento-validate-migrations` | migrations applied cold to a fresh database | phase 7 build gate alone |
 | `magento2-development-environment` | container and environment commands | detect Warden/DDEV/host PHP directly |
 
 ## Rules that carry the weight
@@ -33,18 +33,15 @@ Read these before starting. Each one cost real time on a real upgrade.
 3. **Triage every failure before reporting it.** About half of a first run's failures are the
    harness, not the store (`magento-e2e-test`'s harness traps). Reporting a selector bug as a
    regression burns trust.
-4. **Developer and production mode hide different bugs.** Developer turns PHP warnings into
-   exceptions; production suppresses them but is the only place SRI hashes are generated and
-   module runtime assertions reach the log. Both are needed.
+4. **Stay in developer mode locally.** It turns PHP warnings into exceptions, so faults surface
+   loudly. CI proves the production build. The one production-only artefact worth checking
+   locally, SRI hashes, gets a per-process override in phase 7, never a mode switch.
 5. **Composer cannot fix `app/code` or `app/design`.** Dynamic properties, changed library
    signatures and LESS division are hand edits or nothing.
 6. **A fully patched store can still ship a broken release.** Bugs introduced *inside* a
    release never appear in the patch registry.
-7. **Test what is actually used.** Rank payment methods and paths by real order counts, not
-   by what is easy to drive.
-8. **Never drive a payment gateway.** Offline Check/Money order and Purchase Order only, even
-   where sandbox keys are configured. State plainly in the report what share of real orders
-   the untested gateways represent.
+7. **Never drive a payment gateway.** Offline Check/Money order and Purchase Order only, even
+   where sandbox keys are configured. Name every active gateway in the report as untested.
 
 `reference/traps.md` has each known failure mode with a detection command.
 
@@ -79,6 +76,10 @@ Detect the project, then build a compatibility picture. Change nothing.
    requirements so a PHP choice is not made twice.
 3. **Environment URLs** — local, dev, staging, production. Propose what was found (README
    first, then `store` + `core_config_data web/unsecure/base_url`) for confirmation.
+4. **Known release bugs in the target.** Check `magento-patch-check`'s `known-issues.md`
+   against the target's package versions (`composer show magento/product-community-edition
+   <target> -a`). For each hit, ask whether to apply the fix, recommending yes: the trigger
+   config may be off locally and on in production.
 
 Do not ask about module bumps (always latest compatible) or payments (always offline only).
 
@@ -96,6 +97,10 @@ be made healthy without them, stop and report.
 
 Run `magento-e2e-test`'s "Before any run" checks now: local store, mail caught, data safe.
 
+Check free disk **inside the container** (`df -h /`). Under about 5 GB, stop and tell the user
+before phase 4; what to free is their call. A composer run that dies mid-extract leaves `vendor`
+truncated; delete it and reinstall from the lock.
+
 `.env` and other local-only environment files may be corrected where they are wrong for the
 *current* state — a committed MySQL distribution that does not match the actual data volume,
 which stops the container booting at all. Version bumps belonging to the upgrade are phase 3.
@@ -106,10 +111,19 @@ Keep local-only edits out of commits.
 1. **Database dump first**, timestamped, before anything else.
 2. Run `magento-e2e-test` with label `before`. It picks the harness (the project's own suite, or the
    bundled one with runtime discovery), caches discovery, and keeps results outside the repo.
-   Rank payment methods by real order count for it (rule 7).
 3. Keep the `before` results: phase 8 compares against them with the same harness and fixtures.
 4. **Everything failing here is a known pre-existing failure.** Record it, report it as
    "pre-existing, not investigated", and diff the after-run against this set.
+5. **Build the widen list now** and run it with the baseline: a sample of product URLs per type
+   (random, but saved, so both runs use the same ones), every store's home page, account and
+   B2B routes, CMS pages. Record status and error markers per URL:
+   ```bash
+   while read -r u; do
+     code=$(curl -sk -o /tmp/w.html -w '%{http_code}' "$BASE/$u")
+     err=$(grep -cE 'exception\(s\):|Report ID:|Undefined array key' /tmp/w.html)
+     echo "$code $err $u"
+   done < "$CACHE/widen-urls.txt" > "$CACHE/widen-before.txt"
+   ```
 
 Gate: present the baseline and its pre-existing failures before changing anything.
 
@@ -121,6 +135,19 @@ reindex — the DB value silently wins otherwise.
 
 ### 4 — Composer resolve
 
+- **Set every patch aside first**, then `composer patches-relock`. cweagans v2 applies what is
+  in `patches.lock.json`, so removing entries from `composer.json` alone is not enough. The
+  current version's isolated security patches are dropped for good; phase 6 adds the target's.
+  The project's own patches (vendor fixes, PR backports) are re-assessed in phase 5.
+- **Diff root `require` and `require-dev` against the target's project skeleton** before the
+  first update:
+  ```bash
+  composer create-project --repository-url=https://repo.magento.com/ \
+    magento/project-community-edition=<target> /tmp/skeleton --no-install
+  ```
+  Match `require-dev` to the skeleton, and remove dev packages it no longer carries unless the
+  project uses them. Bump any root `magento/module-*` requirement to the major the target
+  ships (`composer show magento/product-community-edition <target> -a`).
 - Constrain the target as a **range** (`>=2.4.8 <2.4.9`) so patch releases can be pulled in.
 - Third-party modules to **latest compatible**.
 - Expect to fight: exact pins that cannot resolve, `require-dev` constraints that block the
@@ -132,23 +159,50 @@ The fixes composer structurally cannot make, across `app/code` and `app/design`.
 `reference/traps.md` for detection of each: dynamic properties, changed library signatures,
 LESS division, theme overrides whose core ancestor changed.
 
-### 6 — Build, then verify the output ★
+**Re-assess every project patch** set aside in phase 4 against the updated package, with a
+forward and a reverse `patch --dry-run` (`reference/traps.md`). Re-add, drop or rebase each one,
+and record why. Applying cleanly does not prove a patch is still needed.
 
-Run the project's own build command (`make build-*` if present) in **production mode**, then
-verify the artefacts rather than the exit code:
-
-- scan every generated CSS for unevaluated division
-- confirm SRI hashes cover bundled JS
-- sweep the logs for `CRITICAL` and runtime assertions
-
-**Fail this gate on bad output even when the exit code is 0.** That is the whole point of it.
-
-### 7 — Security patches
+### 6 — Security patches
 
 Delegate to `magento-patch-check` where present. Otherwise query Adobe's registry directly.
 
+Patches go in before the build gate, so the build it verifies and the after-test both run the
+code that ships.
+
+Apply the known-issue fixes approved in phase 0. A declined one goes in the report with the
+config that would trigger it.
+
 The release does **not** cover isolated patches published after it. A version released in May
 still needs the June, July and August isolated patches for that patch level.
+
+### 7 — Build, then verify the output ★
+
+Build the way the project builds, in the store's current mode. Do not switch the local store
+to production mode; CI proves the production build. Find the steps in this order:
+
+1. README
+2. Makefile, Justfile, `package.json` scripts, build scripts under `bin/` or `scripts/`
+3. CI workflow files: `bitbucket-pipelines.yml`, `.github/workflows/`, `.gitlab-ci.yml`
+4. Deploy config: `deploy.php` and similar
+5. Otherwise Magento's own: `setup:upgrade`, `setup:di:compile`,
+   `setup:static-content:deploy -f`, `cache:flush`
+
+Read each target before running it, and skip CI-only steps: `composer install --no-dev`,
+permission resets, packaging. Hyvä themes need their Tailwind build before static deploy.
+
+Then verify the artefacts rather than the exit code:
+
+- scan every generated CSS for unevaluated division
+- SRI: hashes are only generated in production. Run the static deploy once more with a
+  per-process `MAGE_MODE=production` override (`magento-patch-check`'s `known-issues.md`),
+  with `dev/js/enable_js_bundling` and `dev/js/minify_files` switched on if they are off.
+  Restore both after. With them off no hash file is generated and the check proves nothing.
+- load the key pages and sweep the logs for `CRITICAL` and runtime assertions. Some only log
+  in production, so check the dev environment's logs after the first deploy as well.
+  Take time cutoffs from the container's clock (`date -u` inside it), not the host's.
+
+**Fail this gate on bad output even when the exit code is 0.** That is the whole point of it.
 
 ### 8 — After-test
 
@@ -156,12 +210,14 @@ Run `magento-e2e-test` with label `after`, in the same mode as the baseline, and
 `before`. Classify every difference as **fixed**, **regression** or **harness** before
 reporting.
 
-Then widen: product types beyond simple, every store, and admin *write* operations — save a
-product, save a CMS page, invoice an order. Read-only grid checks prove very little.
+Then re-run the widen list from phase 2 into `widen-after.txt` and diff the two. Only a URL
+that got worse is a candidate regression. The harness already covers admin writes (save a
+product, save a CMS page, invoice an order).
 
 ### 9 — Report and ship ★
 
-The report carries: version and stack changes, composer diff, `config.php` module diff,
+The report carries: version and stack changes, composer diff and `config.php` module diff
+(both against the branch the PR will target, not `master` by habit),
 patches applied with provenance, compatibility fixes made, the before/after comparison,
 advisory stack drift, and an explicit **untested** section.
 
@@ -179,5 +235,5 @@ Rendered or shareable artifacts are produced only on request.
 ## Reporting honesty
 
 State what was not covered as prominently as what passed: payment gateways (never driven;
-give their share of real orders), anything the harness could not reach, and bugs deliberately
+name each active one), anything the harness could not reach, and bugs deliberately
 left unfixed, with the reasoning.

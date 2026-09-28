@@ -17,11 +17,13 @@ Seen: `stripe/module-payments` 4.6.7 declares only `php: >=7.4`, then demands
 v13 and logged on every request.
 
 ```bash
-# after the resolve, in production mode, load a few pages then:
+# after the resolve, load a few pages then:
 grep -iE "CRITICAL|depends on|requires .* or newer" var/log/system.log | sort -u
 ```
 
 Check the log after **any** third-party module major bump. Composer cannot catch this class.
+Some assertions only log in production, so run the same grep on the dev environment after the
+first deploy.
 
 ### Exact pins that cannot resolve
 
@@ -33,6 +35,19 @@ the target rather than assuming the resolve proves it.
 
 A `require-dev` constraint like `"symfony/process": "<=v5.4.23"` will block a target that
 needs Symfony 6. Dev-only pins are the least obvious cause of an unsolvable resolve.
+
+Seen on 2.4.7 → 2.4.8: `sebastian/phpcpd` ^6 (abandoned, gone from the 2.4.8 skeleton) blocks
+phpunit 10. Root `magento/module-elasticsearch-8` ^100.4 blocks the 101.x that 2.4.8 ships.
+
+### Stale `patches.lock.json`
+
+Old-level patches removed from `composer.json` but still in `patches.lock.json` are applied
+anyway, and the update dies mid-install with `No available patcher was able to apply patch
+…`, leaving `vendor` half-extracted. Relock after removing them. No hits means the lock is clean:
+
+```bash
+grep -c '247p10' patches.lock.json   # the old patch level
+```
 
 ---
 
@@ -50,12 +65,15 @@ bare `a/b` as division — it emits it literally.** Two distinct symptoms:
 output. The browser discards the declaration and the layout silently falls back — product
 grids drop from three per row to two oversized ones. **SCD exits 0.**
 
+Scan the compiled output, not the source. From the Magento root, piped into the container:
+
 ```bash
-# run against compiled output, not source
-find pub/static -name '*.css' -exec grep -oE \
-  "[a-z-]+:[^;{}]*[0-9](%|px|em|rem)?[[:space:]]*/[[:space:]]*[0-9][^;{}]*" {} \; \
-  | grep -vE 'calc\(|url\(|^font:|aspect-ratio|grid-|^background:' | sort -u
+warden env exec -T php-fpm bash < ~/.claude/skills/magento-upgrade/scripts/css-division.sh
 ```
+
+It prints `file:declaration` for each hit. A hit from vendor LESS (an Amasty `_base.less`,
+say) is reported rather than fixed during the upgrade: it needs a vendor patch or a theme
+override.
 
 Fix by wrapping: `width: (100% / 2);`. **Do not blanket-replace every `/` in LESS:**
 
@@ -72,6 +90,10 @@ Detect by reflection against the live class tree instead — load the autoloader
 `app/code`, compare `$this->foo =` assignments against every property up the inheritance
 chain. On one project a naive grep claimed 77 problems across 37 files; reflection found the
 real number: 15 across 7.
+
+```bash
+warden env exec -T php-fpm php < ~/.claude/skills/magento-upgrade/scripts/dynprops.php
+```
 
 ### Changed library signatures
 
@@ -107,60 +129,28 @@ repo. After the resolve, diff every snapshot against its new version. For each a
 changed, show that upstream diff next to the override and port the change, or record why not.
 An unchanged ancestor needs nothing.
 
----
+### Project patches after the update
 
-## Phase 6 — build and output
-
-### SRI hash corruption (AC-15165)
-
-Adobe KB `ka-27997`. CSP changes generate Subresource Integrity hashes with **incorrect
-paths** for minified JS when bundling is enabled, so `mixins.min.js` and `static.min.js` fail
-to load on checkout pages.
-
-Affects **2.4.8 p3–p5, 2.4.7 p8–p10, 2.4.6 p13–p15, 2.4.5 p15–p17**. Triggered by
-`dev/js/enable_js_bundling` + `dev/js/minify_files`.
-
-**Invisible in developer mode** — no hashes are generated there at all. Detect in production:
+A project patch that applies cleanly has only proved the old code is still there, not that the
+bug is still unfixed. Check each one against the unpatched target package:
 
 ```bash
-php -r '
-$d = json_decode(file_get_contents("pub/static/frontend/sri-hashes.json"), true);
-$n = $missing = 0;
-foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator("pub/static/frontend")) as $f) {
-    if (!in_array($f->getFilename(), ["mixins.min.js", "static.min.js"], true)) continue;
-    $n++;
-    if (!isset($d[substr($f->getPathname(), strlen("pub/static/"))])) $missing++;
-}
-echo "entries: " . count($d) . " | bundled files: $n | without a hash: $missing\n";'
+patch -p1 --dry-run    -d vendor/<vendor>/<package> < <patch>   # clean: old code unchanged
+patch -p1 -R --dry-run -d vendor/<vendor>/<package> < <patch>   # clean: upstream already has it
 ```
 
-Broken: thousands of entries, and every bundled file missing a hash. Fixed: a small file with
-one `requirejs-config.min.js` entry per theme/locale. **The drop in coverage after the fix is
-correct**, not a second bug — Adobe documents the trade-off.
+| Result | Meaning | Action |
+|---|---|---|
+| Reverse clean | Upstream contains the change | Drop it |
+| Forward clean | Code unchanged, bug not necessarily unfixed | Check the upstream issue or release notes, then re-add or drop |
+| Both fail | The file changed around the patch | Read the upstream change. Drop the patch if upstream fixed the bug, else rebase it against the new code and review that as a code change |
 
-Severity depends on CSP mode. `csp/mode/*/report_only` defaults to 1, so nothing is enforced
-and checkout keeps working — preventative then, urgent before switching to restrict mode.
-
-Fix is a revert patch against `magento/module-csp`, package-relative so no `depth`. Match it
-to the **`module-csp` version**, not the release name — a patch named for 2.4.8-p3 applies
-unchanged to 2.4.8-p5 because both ship `module-csp` 100.4.7-p3.
-
-### magento2-base reinstall reverts root files
-
-Reinstalling `magento/magento2-base` silently reverts every patched root file
-(`lib/web/underscore.js`, `pub/errors/processor.php`) while `patches.lock.json` still claims
-they are applied. A `partial` patch verdict is usually this. Re-verify patches after any
-`composer reinstall` or `patches-repatch`.
-
-### Stale config cache during setup:upgrade
-
-`setup:upgrade` failing with `<name> indexer does not exist` is usually a stale config cache
-rather than a real problem — new modules declare indexers the cached config has not seen.
-`bin/magento cache:clean` and re-run before investigating.
+A dead upstream link is not proof of a fix: Adobe removes security PRs. Ask whoever wrote the
+patch before dropping it.
 
 ---
 
-## Phase 7 — patches
+## Phase 6 — patches
 
 ### Isolated patches published after the release
 
@@ -184,6 +174,66 @@ A patch detector reporting `partial` may be looking for *removed* lines that the
 already dropped. Confirm by checking the patch's **added** lines are present on disk before
 believing it. Positive control: point the same check at a superseded patch and confirm it
 does report absence.
+
+---
+
+## Phase 7 — build and output
+
+### SRI hash corruption (AC-15165)
+
+Adobe KB `ka-27997`. CSP changes generate Subresource Integrity hashes with **incorrect
+paths** for minified JS when bundling is enabled, so `mixins.min.js` and `static.min.js` fail
+to load on checkout pages.
+
+Affects **2.4.8 p3–p5, 2.4.7 p8–p10, 2.4.6 p13–p15, 2.4.5 p15–p17**. Triggered by
+`dev/js/enable_js_bundling` + `dev/js/minify_files`.
+
+**Invisible in developer mode** — no hashes are generated there at all. Run the static deploy
+with a per-process `MAGE_MODE=production` override (command in `magento-patch-check`'s
+`known-issues.md`), then:
+
+```bash
+php -r '
+$d = json_decode(file_get_contents("pub/static/frontend/sri-hashes.json"), true);
+$n = $missing = 0;
+foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator("pub/static/frontend")) as $f) {
+    if (!in_array($f->getFilename(), ["mixins.min.js", "static.min.js"], true)) continue;
+    $n++;
+    if (!isset($d[substr($f->getPathname(), strlen("pub/static/"))])) $missing++;
+}
+echo "entries: " . count($d) . " | bundled files: $n | without a hash: $missing\n";'
+```
+
+Broken: thousands of entries, and every bundled file missing a hash. Fixed: a small file with
+one `requirejs-config.min.js` entry per theme/locale. **The drop in coverage after the fix is
+correct**, not a second bug — Adobe documents the trade-off.
+
+Severity depends on CSP mode. `csp/mode/*/report_only` defaults to 1, so nothing is enforced
+and checkout keeps working — preventative then, urgent before switching to restrict mode.
+Offer the fix in phase 0 whenever `module-csp` is in the affected set, whatever the local
+config or CSP mode.
+
+Fix is a revert patch against `magento/module-csp`, package-relative so no `depth`. Match it
+to the **`module-csp` version**, not the release name — a patch named for 2.4.8-p3 applies
+unchanged to 2.4.8-p5 because both ship `module-csp` 100.4.7-p3.
+
+### magento2-base reinstall reverts root files
+
+Reinstalling `magento/magento2-base` silently reverts every patched root file
+(`lib/web/underscore.js`, `pub/errors/processor.php`) while `patches.lock.json` still claims
+they are applied. A `partial` patch verdict is usually this. Re-verify patches after any
+`composer reinstall` or `patches-repatch`.
+
+### Stale config cache during setup:upgrade
+
+`setup:upgrade` failing with `<name> indexer does not exist` is usually a stale config cache
+rather than a real problem — new modules declare indexers the cached config has not seen.
+`bin/magento cache:clean` and re-run before investigating.
+
+If `bin/magento` itself will not boot, with `Class "…" does not exist` for a class nothing on
+disk references, the stale entry is in the cache backend and no CLI command can clear it.
+Flush the cache databases directly: the ones in `env.php` `cache/frontend/*/backend_options/
+database`, not the session database. File backend: delete `var/cache` and `var/page_cache`.
 
 ---
 
@@ -215,5 +265,5 @@ catalogue. Log noise in production, broken local dev.
 | Module runtime assertions | rarely reached | logged as CRITICAL |
 | Static content | compiled on demand | must be deployed |
 
-Run the functional suite in **developer** mode, where faults surface loudly. Run the build,
-SRI check and log sweep in **production** mode. Restore the original mode afterwards.
+Run the functional suite and the build in **developer** mode. For SRI, run one static deploy
+with a per-process `MAGE_MODE=production` override. Never switch the store's mode.
