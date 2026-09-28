@@ -132,24 +132,18 @@ store-wide break, but it will fail the run.
 
 ---
 
-## Payment methods, ranked by real usage
+## Payment methods
 
-This is what makes the coverage report honest.
+Test only the offline methods. List every other active method as untested, so the report can
+say so: "checkout works" must never be read as "the gateway works". `core_config_data` and
+`config:show` both miss methods active by module default, such as Check/Money order, so ask
+Magento:
 
-```sql
-SELECT p.method, COUNT(*) n
-FROM sales_order_payment p
-GROUP BY p.method
-ORDER BY n DESC
-LIMIT 10;
-```
-
-Test only the offline methods. Record the order share of everything else so the report can
-state exactly what is untested — "checkout works" must never be read as "the gateway works".
-
-```sql
-SELECT path, value FROM core_config_data
-WHERE path IN ('payment/checkmo/active', 'payment/purchaseorder/active');
+```bash
+php -r 'require "app/bootstrap.php";
+$om = \Magento\Framework\App\Bootstrap::create(BP, $_SERVER)->getObjectManager();
+foreach ($om->get(\Magento\Payment\Api\PaymentMethodListInterface::class)->getActiveList(1) as $m)
+    echo $m->getCode(), "\n";'
 ```
 
 Values **locked in `env.php`** cannot be changed with `bin/magento config:set` — it refuses
@@ -287,10 +281,7 @@ Phase 9 does not finish until this row is gone.
   },
   "payments": {
     "test": ["checkmo", "purchaseorder"],
-    "untested": [
-      { "method": "stripe_payments", "orders": 1200 },
-      { "method": "paypal_express",  "orders": 450 }
-    ]
+    "untested": ["stripe_payments", "paypal_express"]
   },
   "admin": { "path": "/admin", "user": "upgradetest" }
 }
