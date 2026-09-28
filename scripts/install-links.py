@@ -14,7 +14,7 @@ import sys
 import tempfile
 from datetime import datetime
 
-PACKAGES = 'zsh git ansible nvim ghostty warp btop sublime vscode composer agents claude pi'.split()
+PACKAGES = 'zsh git ansible nvim ghostty warp btop sublime vscode composer agents claude pi warden ddev'.split()
 INTEGRATIONS = {'.gitconfig', '.claude/CLAUDE.md'}
 VENDOR_DIR = '.local/share/dotfiles/vendor'
 SAFE_NAME = re.compile(r'[A-Za-z0-9._-]+')

@@ -1,0 +1,7 @@
+# DDEV's router owns 80/443 and passes *.test through to here
+# (~/.ddev/traefik/custom-global-config/warden.yaml)
+services:
+  traefik:
+    ports: !override
+      - "127.0.0.1:8080:80"
+      - "127.0.0.1:8443:443"

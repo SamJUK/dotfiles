@@ -1,0 +1,4 @@
+# Router fronts Warden too, so keep it up across OrbStack restarts
+services:
+  ddev-router:
+    restart: always

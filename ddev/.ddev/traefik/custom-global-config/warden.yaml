@@ -1,0 +1,26 @@
+# Pass *.test through to Warden's Traefik on 8080/8443 (~/.warden/docker-compose.yml).
+# TLS passthrough, so Warden keeps serving its own certs.
+tcp:
+  routers:
+    warden:
+      entryPoints: [http-443]
+      rule: 'HostSNIRegexp(`^.+\.test$`)'
+      service: warden
+      tls:
+        passthrough: true
+  services:
+    warden:
+      loadBalancer:
+        servers:
+          - address: host.docker.internal:8443
+http:
+  routers:
+    warden:
+      entryPoints: [http-80]
+      rule: 'HostRegexp(`^.+\.test$`)'
+      service: warden
+  services:
+    warden:
+      loadBalancer:
+        servers:
+          - url: http://host.docker.internal:8080

@@ -163,6 +163,7 @@ The secret-scanning hook is opt-in. Run `pre-commit install` in each repo you ma
 | `agents` | `.agents/AGENTS.md`, `.agents/skills/*`, `.agents/rules/*`; known skills/rules also linked into Claude's directories |
 | `claude` | `.claude/statusline-command.sh`; `.claude/CLAUDE.md` supplies the integration instruction |
 | `composer` | `.composer/composer.{json,lock}` |
+| `warden`, `ddev` | `.warden/docker-compose.yml`, `.ddev/router-compose.restart.yaml`, `.ddev/traefik/custom-global-config/warden.yaml`; DDEV's router owns 80/443 and passes `*.test` through to Warden's Traefik on 8080/8443 |
 | `bin` | scripts added to PATH, not stowed; built binaries belong in `~/go/bin` or `~/.local/bin` |
 | `iterm2`, `alfred` | import-only iTerm2 profile and Alfred snippets, not stowed |
 | `scripts`, `tests` | installer implementation and regression tests, not stowed |
