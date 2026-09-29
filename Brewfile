@@ -260,6 +260,8 @@ cask "visual-studio-code"
 cask "warp"
 # Network protocol analyzer
 cask "wireshark-app"
+# Disk space analyzer
+cask "gdu"
 vscode "4ops.terraform"
 vscode "anthropic.claude-code"
 vscode "astro-build.astro-vscode"

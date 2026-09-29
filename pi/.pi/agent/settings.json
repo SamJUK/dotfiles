@@ -1,6 +1,7 @@
 {
   "packages": [
-    "npm:pi-permission-modes"
+    "npm:pi-permission-modes",
+    "npm:pi-models-discovery"
   ],
   "lastChangelogVersion": "0.87.1",
   "theme": "dark"
