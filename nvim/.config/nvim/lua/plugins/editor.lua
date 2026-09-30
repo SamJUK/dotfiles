@@ -1,7 +1,7 @@
 -- ============================================================
 -- Editor Enhancements
--- autopairs, surround, comments, indent guides, colour preview,
--- todo-comments, illuminate, harpoon, toggleterm
+-- autopairs, indent detection, surround, comments, indent guides,
+-- colour preview, todo-comments, illuminate, harpoon, toggleterm
 -- ============================================================
 
 return {
@@ -21,11 +21,16 @@ return {
         },
         disable_filetype = { "TelescopePrompt" },
       })
-      -- Connect autopairs to nvim-cmp: add `(` after confirming a function
-      local cmp_autopairs = require("nvim-autopairs.completion.cmp")
-      local cmp = require("cmp")
-      cmp.event:on("confirm_done", cmp_autopairs.on_confirm_done())
+      -- `(` after accepting a function completion comes from blink.cmp's auto_brackets
     end,
+  },
+
+  -- ── Guess indentation from each file's content ────────────
+  -- Repos mix 2- and 4-space files; .editorconfig still wins where present
+  {
+    "NMAC427/guess-indent.nvim",
+    event = { "BufReadPre", "BufNewFile" },
+    opts = {},
   },
 
   -- ── Surround: add/change/delete surrounding chars ─────────
@@ -220,7 +225,11 @@ return {
     event   = "VeryLazy",
     version = "*",
     config  = function()
-      require("mini.ai").setup({ n_lines = 500 })
+      require("mini.ai").setup({
+        n_lines = 500,
+        -- Leave `an` / `in` to Neovim's treesitter selection (<C-space> in treesitter.lua)
+        mappings = { around_next = "", inside_next = "" },
+      })
     end,
   },
 

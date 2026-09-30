@@ -17,11 +17,13 @@ return {
       require("nvim-treesitter").setup()
 
       local parsers = {
-        "php", "javascript", "typescript", "tsx",
-        "css", "scss", "html", "go", "gomod",
-        "yaml", "xml", "json", "lua",
-        "markdown", "markdown_inline", "bash",
+        "php", "phpdoc", "javascript", "typescript", "tsx",
+        "css", "scss", "html", "graphql", "go", "gomod", "gosum", "gowork",
+        "yaml", "xml", "json", "lua", "python", "toml", "ini",
+        "markdown", "markdown_inline", "bash", "make",
+        "terraform", "hcl", "jinja", "jinja_inline", "nginx", "ssh_config",
         "dockerfile", "sql", "regex", "vim", "vimdoc",
+        "diff", "gitcommit", "git_rebase", "gitignore", "git_config",
       }
 
       -- Install any missing parsers in the background (non-blocking)
@@ -42,8 +44,8 @@ return {
           if not lang then return end
 
           local ok = pcall(vim.treesitter.start, ev.buf, lang)
-          if not ok then
-            -- Parser missing → install silently, will highlight on next open
+          -- Parser missing → install it if one exists (not for TelescopePrompt, neo-tree…)
+          if not ok and require("nvim-treesitter.parsers")[lang] then
             vim.schedule(function()
               require("nvim-treesitter").install({ lang })
             end)
@@ -52,42 +54,49 @@ return {
       })
 
       -- Incremental selection (Ctrl+Space to expand, Backspace to shrink)
-      vim.keymap.set("n", "<C-space>", function()
-        vim.cmd("normal! vib")
-      end, { desc = "Start selection (treesitter)" })
+      -- Uses Neovim's built-in treesitter `an` / `in` visual mappings
+      vim.keymap.set("n", "<C-space>", "van", { remap = true, desc = "Start selection (treesitter)" })
+      vim.keymap.set("x", "<C-space>", "an", { remap = true, desc = "Expand selection" })
+      vim.keymap.set("x", "<BS>", "in", { remap = true, desc = "Shrink selection" })
 
       -- ── nvim-treesitter-textobjects (v1.x uses its own setup) ──
+      -- setup() only takes options; keymaps are plain vim.keymap.set calls
       require("nvim-treesitter-textobjects").setup({
-        select = {
-          enable = true,
-          lookahead = true,
-          keymaps = {
-            ["af"] = "@function.outer",   -- select whole function
-            ["if"] = "@function.inner",   -- select function body
-            ["ac"] = "@class.outer",      -- select whole class
-            ["ic"] = "@class.inner",      -- select class body
-            ["aa"] = "@parameter.outer",  -- select whole argument
-            ["ia"] = "@parameter.inner",  -- select argument value
-            ["ab"] = "@block.outer",
-            ["ib"] = "@block.inner",
-          },
-        },
-        -- Jump between functions/classes with ]m / [m
-        move = {
-          enable = true,
-          set_jumps = true,
-          goto_next_start     = { ["]m"] = "@function.outer", ["]c"] = "@class.outer" },
-          goto_next_end       = { ["]M"] = "@function.outer", ["]C"] = "@class.outer" },
-          goto_previous_start = { ["[m"] = "@function.outer", ["[c"] = "@class.outer" },
-          goto_previous_end   = { ["[M"] = "@function.outer", ["[C"] = "@class.outer" },
-        },
-        -- Swap function arguments with <leader>a / <leader>A
-        swap = {
-          enable = true,
-          swap_next     = { ["<leader>a"] = "@parameter.inner" },
-          swap_previous = { ["<leader>A"] = "@parameter.inner" },
-        },
+        select = { lookahead = true },
+        move = { set_jumps = true },
       })
+
+      -- Arguments (aa / ia) and brackets (ab / ib) come from mini.ai
+      local select = require("nvim-treesitter-textobjects.select")
+      for key, query in pairs({
+        af = "@function.outer",   -- select whole function
+        ["if"] = "@function.inner",   -- select function body
+        ac = "@class.outer",      -- select whole class
+        ic = "@class.inner",      -- select class body
+      }) do
+        vim.keymap.set({ "x", "o" }, key, function()
+          select.select_textobject(query, "textobjects")
+        end, { desc = "Select " .. query })
+      end
+
+      -- Jump between functions with ]m / [m
+      -- No ]c / [c class jumps: those are Vim's diff-mode change jumps
+      local move = require("nvim-treesitter-textobjects.move")
+      for key, fn in pairs({
+        ["]m"] = move.goto_next_start,     ["]M"] = move.goto_next_end,
+        ["[m"] = move.goto_previous_start, ["[M"] = move.goto_previous_end,
+      }) do
+        vim.keymap.set({ "n", "x", "o" }, key, function()
+          fn("@function.outer", "textobjects")
+        end, { desc = "Move to @function.outer" })
+      end
+
+      -- Swap function arguments with <leader>a / <leader>A
+      local swap = require("nvim-treesitter-textobjects.swap")
+      vim.keymap.set("n", "<leader>a", function() swap.swap_next("@parameter.inner") end,
+        { desc = "Swap with next argument" })
+      vim.keymap.set("n", "<leader>A", function() swap.swap_previous("@parameter.inner") end,
+        { desc = "Swap with previous argument" })
     end,
   },
 }

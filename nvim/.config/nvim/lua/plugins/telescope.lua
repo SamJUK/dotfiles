@@ -6,7 +6,7 @@
 return {
   {
     "nvim-telescope/telescope.nvim",
-    branch = "0.1.x",
+    version = "*",  -- latest release; 0.1.x breaks with the new nvim-treesitter
     dependencies = {
       "nvim-lua/plenary.nvim",
       -- Native FZF sorter: much faster fuzzy matching
@@ -40,10 +40,10 @@ return {
       { "<leader>fS", "<cmd>Telescope lsp_dynamic_workspace_symbols<cr>",     desc = "Find symbols (project)" },
       { "<leader>fd", "<cmd>Telescope diagnostics<cr>",                       desc = "Find diagnostics" },
 
-      -- ── Git ────────────────────────────────────────────────
-      { "<leader>fgc", "<cmd>Telescope git_commits<cr>",                      desc = "Git commits" },
-      { "<leader>fgb", "<cmd>Telescope git_branches<cr>",                     desc = "Git branches" },
-      { "<leader>fgs", "<cmd>Telescope git_status<cr>",                       desc = "Git status" },
+      -- ── Git (under <leader>g: nesting them under <leader>fg made live grep wait) ──
+      { "<leader>gl", "<cmd>Telescope git_commits<cr>",                       desc = "Git log (commits)" },
+      { "<leader>go", "<cmd>Telescope git_branches<cr>",                      desc = "Git branches (checkout)" },
+      { "<leader>gm", "<cmd>Telescope git_status<cr>",                        desc = "Git modified files" },
     },
     config = function()
       local telescope = require("telescope")

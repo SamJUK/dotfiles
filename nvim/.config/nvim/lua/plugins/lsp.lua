@@ -9,7 +9,7 @@ return {
   -- ── Mason: LSP server / linter / formatter installer ──────
   {
     "williamboman/mason.nvim",
-    cmd  = "Mason",
+    lazy = false,  -- puts Mason's bin/ on PATH before linters and formatters run
     keys = { { "<leader>lm", "<cmd>Mason<cr>", desc = "Mason (LSP manager)" } },
     build = ":MasonUpdate",
     config = function()
@@ -23,6 +23,15 @@ return {
           },
         },
       })
+
+      -- Formatters and linters (LSP servers are installed by mason-lspconfig below)
+      local registry = require("mason-registry")
+      registry.refresh(function()
+        for _, name in ipairs({ "goimports", "gofumpt", "shfmt", "hadolint", "prettier", "ansible-lint" }) do
+          local pkg = registry.get_package(name)
+          if not pkg:is_installed() then pkg:install() end
+        end
+      end)
     end,
   },
 
@@ -43,8 +52,14 @@ return {
           "lemminx",                  -- XML
           "lua_ls",                   -- Lua (for editing nvim config)
           "jsonls",                   -- JSON
+          "terraformls",              -- Terraform (tflint comes from brew)
+          "ansiblels",                -- Ansible
+          "bashls",                   -- Bash (uses shellcheck from brew)
+          "dockerls",                 -- Dockerfile
+          "docker_compose_language_service", -- docker-compose.yml
         },
-        automatic_installation = true,
+        -- Servers are enabled in nvim-lspconfig below, after vim.lsp.config has run
+        automatic_enable = false,
       })
     end,
   },
@@ -52,11 +67,13 @@ return {
   -- ── Core LSP config ───────────────────────────────────────
   {
     "neovim/nvim-lspconfig",
-    event = { "BufReadPost", "BufNewFile" },
+    -- Not BufReadPost: vim.lsp.enable() fires FileType when loaded mid-read,
+    -- which makes filetype detection skip that buffer (no ft, no highlighting)
+    event = "VeryLazy",
     dependencies = {
       "williamboman/mason.nvim",
       "williamboman/mason-lspconfig.nvim",
-      "hrsh7th/cmp-nvim-lsp",  -- enhanced LSP capabilities for completion
+      "saghen/blink.cmp",  -- completion capabilities, needed before any server starts
     },
     config = function()
       -- ── Diagnostic appearance ─────────────────────────────
@@ -80,13 +97,13 @@ return {
           border = "rounded",
           source = "always",
         },
+        -- Built-in [d / ]d open the float after jumping
+        jump = {
+          on_jump = function(_, bufnr)
+            vim.diagnostic.open_float({ bufnr = bufnr, scope = "cursor", focus = false })
+          end,
+        },
       })
-
-      -- ── Hover / signature help window style ───────────────
-      vim.lsp.handlers["textDocument/hover"] =
-        vim.lsp.with(vim.lsp.handlers.hover, { border = "rounded" })
-      vim.lsp.handlers["textDocument/signatureHelp"] =
-        vim.lsp.with(vim.lsp.handlers.signature_help, { border = "rounded" })
 
       -- ── Keymaps applied whenever an LSP attaches ──────────
       vim.api.nvim_create_autocmd("LspAttach", {
@@ -108,18 +125,16 @@ return {
           map("gt", function() require("telescope.builtin").lsp_type_definitions() end,"Go to type definition")
 
           -- Documentation
-          map("K",           vim.lsp.buf.hover,           "Hover documentation")
-          map_i("<C-s>",     vim.lsp.buf.signature_help,  "Signature help (parameter hints)")
+          map("K",       function() vim.lsp.buf.hover({ border = "rounded" }) end,          "Hover documentation")
+          map_i("<C-s>", function() vim.lsp.buf.signature_help({ border = "rounded" }) end, "Signature help (parameter hints)")
 
           -- Actions
           map("<leader>rn",  vim.lsp.buf.rename,          "Rename symbol")
           map("<leader>ca",  vim.lsp.buf.code_action,     "Code action")
-          map("<leader>lf",  function() vim.lsp.buf.format({ async = true }) end, "Format file")
+          -- <leader>lf (format) is conform.nvim's, which falls back to LSP itself
 
           -- Diagnostics
           map("<leader>ld",  vim.diagnostic.open_float,   "Show line diagnostics")
-          map("[d",          vim.diagnostic.goto_prev,    "Previous diagnostic")
-          map("]d",          vim.diagnostic.goto_next,    "Next diagnostic")
 
           -- Workspace
           map("<leader>lwa", vim.lsp.buf.add_workspace_folder,    "Add workspace folder")
@@ -130,7 +145,7 @@ return {
 
           -- Toggle inlay hints (nvim 0.10+: shows types inline in Go/TS)
           local client = vim.lsp.get_client_by_id(event.data.client_id)
-          if client and client.supports_method("textDocument/inlayHint") then
+          if client and client:supports_method("textDocument/inlayHint") then
             map("<leader>li", function()
               vim.lsp.inlay_hint.enable(
                 not vim.lsp.inlay_hint.is_enabled({ bufnr = buf }),
@@ -141,16 +156,15 @@ return {
         end,
       })
 
-      -- ── Capabilities (enhanced by nvim-cmp) ───────────────
-      local capabilities = require("cmp_nvim_lsp").default_capabilities()
+      -- ── Capabilities (enhanced by blink.cmp) ──────────────
+      vim.lsp.config("*", { capabilities = require("blink.cmp").get_lsp_capabilities() })
 
       -- ── Server configurations ─────────────────────────────
-      local lspconfig = require("lspconfig")
+      -- Merged over the defaults nvim-lspconfig ships in its lsp/ directory
 
       -- PHP — Intelephense (free tier: completions, hover, go-to-def, signatures)
       -- For premium features, set vim.g.intelephense_licence_key in ~/.config/nvim/lua/local.lua
-      lspconfig.intelephense.setup({
-        capabilities = capabilities,
+      vim.lsp.config("intelephense", {
         settings = {
           intelephense = {
             environment = { phpVersion = "8.4" },
@@ -165,14 +179,13 @@ return {
               "sodium", "SPL", "sqlite3", "standard", "superglobals", "tokenizer",
               "xml", "xmlreader", "xmlwriter", "xsl", "zip", "zlib",
             },
-            format = { enable = false },  -- use phpcbf (conform.nvim) for formatting
+            format = { enable = false },  -- php-cs-fixer via conform.nvim (<leader>lf)
           },
         },
       })
 
       -- JavaScript / TypeScript
-      lspconfig.ts_ls.setup({
-        capabilities = capabilities,
+      vim.lsp.config("ts_ls", {
         settings = {
           typescript = {
             inlayHints = {
@@ -193,8 +206,7 @@ return {
       })
 
       -- CSS
-      lspconfig.cssls.setup({
-        capabilities = capabilities,
+      vim.lsp.config("cssls", {
         settings = {
           css  = { validate = true, lint = { unknownAtRules = "ignore" } },
           scss = { validate = true, lint = { unknownAtRules = "ignore" } },
@@ -202,12 +214,8 @@ return {
         },
       })
 
-      -- HTML
-      lspconfig.html.setup({ capabilities = capabilities })
-
       -- Go
-      lspconfig.gopls.setup({
-        capabilities = capabilities,
+      vim.lsp.config("gopls", {
         settings = {
           gopls = {
             analyses  = { unusedparams = true },
@@ -227,8 +235,7 @@ return {
       })
 
       -- YAML
-      lspconfig.yamlls.setup({
-        capabilities = capabilities,
+      vim.lsp.config("yamlls", {
         settings = {
           yaml = {
             keyOrdering = false,
@@ -238,30 +245,26 @@ return {
         },
       })
 
-      -- XML
-      lspconfig.lemminx.setup({ capabilities = capabilities })
+      -- XML: Magento's urn:magento:... schema references can't be resolved without
+      -- a catalog, so only schema-validate when the schema is actually found
+      vim.lsp.config("lemminx", {
+        settings = {
+          xml = { validation = { schema = { enabled = "onValidSchema" } } },
+        },
+      })
 
       -- JSON
-      lspconfig.jsonls.setup({
-        capabilities = capabilities,
+      vim.lsp.config("jsonls", {
         settings = {
           json = {
-            schemas = require("schemastore").json.schemas(),  -- loaded if SchemaStore plugin present
+            schemas = require("schemastore").json.schemas(),
             validate = { enable = true },
           },
         },
-        on_new_config = function(new_config)
-          -- Gracefully skip SchemaStore if not installed
-          local ok, _ = pcall(require, "schemastore")
-          if not ok then
-            new_config.settings.json.schemas = {}
-          end
-        end,
       })
 
       -- Lua (for editing this NVIM config)
-      lspconfig.lua_ls.setup({
-        capabilities = capabilities,
+      vim.lsp.config("lua_ls", {
         settings = {
           Lua = {
             runtime = { version = "LuaJIT" },
@@ -274,6 +277,25 @@ return {
             hint = { enable = true },
           },
         },
+      })
+
+      -- Ansible: ansible-core and ansible-lint come from Mason's ansible-lint venv
+      -- (macOS has no `python`, which is the server's default interpreter)
+      local ansible_venv = vim.fn.stdpath("data") .. "/mason/packages/ansible-lint/venv/bin/"
+      vim.lsp.config("ansiblels", {
+        settings = {
+          ansible = {
+            ansible = { path = ansible_venv .. "ansible" },
+            python  = { interpreterPath = ansible_venv .. "python" },
+          },
+        },
+      })
+
+      vim.lsp.enable({
+        "intelephense", "ts_ls", "cssls", "html", "gopls",
+        "yamlls", "lemminx", "jsonls", "lua_ls",
+        "terraformls", "tflint", "ansiblels", "bashls",
+        "dockerls", "docker_compose_language_service",
       })
     end,
   },

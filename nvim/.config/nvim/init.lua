@@ -3,14 +3,6 @@
 -- Plugin manager: lazy.nvim
 -- ============================================================
 
--- Suppress lspconfig's per-server deprecation (it still works; native migration in roadmap)
--- vim.deprecate is what lspconfig calls on each require('lspconfig').servername access
-local _deprecate = vim.deprecate
-vim.deprecate = function(name, alt, ver, plugin, ...)
-  if plugin == "nvim-lspconfig" then return end
-  _deprecate(name, alt, ver, plugin, ...)
-end
-
 -- Load core options FIRST so <leader> is set before any plugin
 require("config.options")
 require("config.keymaps")
@@ -33,12 +25,12 @@ vim.opt.rtp:prepend(lazypath)
 require("lazy").setup("plugins", {
   change_detection = { notify = false },  -- don't nag about config changes
   checker = { enabled = true, notify = false },  -- silent update checks
+  rocks = { enabled = false },  -- no plugin here needs luarocks
   performance = {
     rtp = {
-      -- Disable built-in plugins we replace or don't need
+      -- Disable built-in plugins we replace (netrw → neo-tree) or don't need
       disabled_plugins = {
-        "gzip", "matchit", "matchparen", "netrwPlugin",
-        "tarPlugin", "tohtml", "tutor", "zipPlugin",
+        "gzip", "netrwPlugin", "tarPlugin", "tohtml", "tutor", "zipPlugin",
       },
     },
   },

@@ -1,14 +1,13 @@
 -- ============================================================
 -- Diagnostics: Formatting, Linting, Trouble panel
 --
--- conform.nvim  → format on save (phpcbf, prettier, gofmt)
--- nvim-lint     → async linting (phpcs, phpstan, eslint)
+-- conform.nvim  → format on save (goimports/gofumpt, terraform fmt, shfmt, prettier)
+-- nvim-lint     → async linting (phpcs, phpstan, eslint, hadolint)
 -- trouble.nvim  → VSCode-style Problems panel
 -- ============================================================
--- REQUIRED external tools (install once):
---   composer global require squizlabs/php_codesniffer phpstan/phpstan
---   npm install -g prettier eslint
---   brew install stylua
+-- External tools are installed by Mason (see lsp.lua), except:
+--   composer global require friendsofphp/php-cs-fixer squizlabs/php_codesniffer phpstan/phpstan
+--   brew install terraform shellcheck tflint
 -- ============================================================
 
 return {
@@ -21,7 +20,7 @@ return {
     keys  = {
       {
         "<leader>lf",
-        function() require("conform").format({ async = true, lsp_fallback = true }) end,
+        function() require("conform").format({ async = true, lsp_format = "fallback" }) end,
         desc = "Format file",
         mode = { "n", "v" },
       },
@@ -29,49 +28,43 @@ return {
     config = function()
       require("conform").setup({
         formatters_by_ft = {
-          php        = { "phpcbf" },      -- PHP: PHP Code Beautifier
+          php        = { "php_cs_fixer" },  -- uses the project's .php-cs-fixer(.dist).php
           javascript = { "prettier" },
           typescript = { "prettier" },
-          jsx        = { "prettier" },
-          tsx        = { "prettier" },
+          javascriptreact = { "prettier" },
+          typescriptreact = { "prettier" },
           css        = { "prettier" },
           scss       = { "prettier" },
           html       = { "prettier" },
           json       = { "prettier" },
           yaml       = { "prettier" },
           markdown   = { "prettier" },
-          go         = { "gofmt" },       -- Go: standard formatter
+          go         = { "goimports", "gofumpt" },
+          terraform  = { "terraform_fmt" },
+          ["terraform-vars"] = { "terraform_fmt" },
           lua        = { "stylua" },      -- Lua: for editing nvim config
           sh         = { "shfmt" },
+          bash       = { "shfmt" },
           ["*"]      = { "trim_whitespace" },  -- trim trailing whitespace on all files
         },
 
-        -- Format when you save (with a 3-second timeout)
-        format_on_save = {
-          timeout_ms   = 3000,
-          lsp_fallback = true,  -- fall back to LSP formatting if no formatter configured
-        },
+        -- Format when you save (with a 3-second timeout), except PHP: Magento's stock
+        -- .php-cs-fixer.dist.php doesn't exclude third-party code in app/code, so a save
+        -- would reformat whole vendor modules. Format PHP on demand with <leader>lf.
+        format_on_save = function(bufnr)
+          if vim.bo[bufnr].filetype == "php" then return end
+          return { timeout_ms = 3000, lsp_format = "fallback" }
+        end,
 
         -- Don't error if a formatter isn't installed
         notify_on_error = false,
 
-        -- Custom formatter configs
         formatters = {
-          phpcbf = {
-            command = function()
-              -- Check for project-local phpcbf first, then global
-              if vim.fn.executable("./vendor/bin/phpcbf") == 1 then
-                return "./vendor/bin/phpcbf"
-              end
-              return vim.fn.expand("~/.composer/vendor/bin/phpcbf")
-            end,
-            args = { "--standard=PSR12", "$FILENAME" },
-            stdin = false,
-          },
-          prettier = {
-            require_cwd = false,
-            -- Use project .prettierrc if present, otherwise sensible defaults
-          },
+          -- A global php-cs-fixer refuses PHP newer than it supports without this
+          php_cs_fixer = { env = { PHP_CS_FIXER_IGNORE_ENV = "1" } },
+          -- Only where the project configures prettier, so it doesn't rewrite
+          -- composer.json, Ansible YAML etc. in repos that don't use it
+          prettier = { require_cwd = true },
         },
       })
     end,
@@ -85,48 +78,30 @@ return {
       local lint = require("lint")
 
       lint.linters_by_ft = {
-        php        = { "phpcs", "phpstan" },
         javascript = { "eslint" },
         typescript = { "eslint" },
+        dockerfile = { "hadolint" },
       }
 
-      -- ── phpcs config ──────────────────────────────────────
-      local phpcs = lint.linters.phpcs
-      phpcs.cmd = function()
-        if vim.fn.executable("./vendor/bin/phpcs") == 1 then
-          return "./vendor/bin/phpcs"
+      -- PHP linters only run where the project configures them: phpcs's default
+      -- standard floods Magento code with warnings, and phpstan needs its neon file
+      local function php_linters(bufnr)
+        local linters = {}
+        if vim.fs.root(bufnr, { "phpcs.xml", "phpcs.xml.dist", ".phpcs.xml", ".phpcs.xml.dist" }) then
+          table.insert(linters, "phpcs")
         end
-        return vim.fn.expand("~/.composer/vendor/bin/phpcs")
-      end
-      phpcs.args = {
-        "--report=json",
-        "--standard=PSR12",     -- change to your standard (PSR2, WordPress, etc.)
-        "--runtime-set", "ignore_warnings_on_exit", "1",
-        "-",  -- read from stdin
-      }
-
-      -- ── phpstan config ────────────────────────────────────
-      local phpstan = lint.linters.phpstan
-      phpstan.cmd = function()
-        if vim.fn.executable("./vendor/bin/phpstan") == 1 then
-          return "./vendor/bin/phpstan"
+        if vim.fs.root(bufnr, { "phpstan.neon", "phpstan.neon.dist", "phpstan.dist.neon" }) then
+          table.insert(linters, "phpstan")
         end
-        return vim.fn.expand("~/.composer/vendor/bin/phpstan")
+        return linters
       end
-      -- phpstan requires a phpstan.neon config in the project root
-      -- it won't run if no config file is found (graceful failure)
 
-      -- ── eslint config ─────────────────────────────────────
-      -- Looks for .eslintrc.* in the project (won't error without it)
-
-      -- Run linting after save and on buffer enter
-      vim.api.nvim_create_autocmd({ "BufWritePost", "BufReadPost", "InsertLeave" }, {
-        callback = function()
-          -- Only lint if the linter is available for this filetype
-          local linters = lint.linters_by_ft[vim.bo.filetype]
-          if linters then
-            lint.try_lint()
-          end
+      vim.api.nvim_create_autocmd({ "BufReadPost", "BufWritePost" }, {
+        group = vim.api.nvim_create_augroup("lint", { clear = true }),
+        callback = function(ev)
+          local names = vim.bo[ev.buf].filetype == "php" and php_linters(ev.buf) or nil
+          -- ignore_errors: a linter that isn't installed (e.g. no eslint) stays quiet
+          lint.try_lint(names, { ignore_errors = true })
         end,
       })
     end,

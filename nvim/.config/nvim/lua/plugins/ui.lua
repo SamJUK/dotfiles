@@ -20,7 +20,7 @@ return {
         transparent_background = false,
         integrations = {
           bufferline = true,
-          cmp = true,
+          blink_cmp = true,
           gitsigns = true,
           neotree = true,
           telescope = { enabled = true },
@@ -46,7 +46,7 @@ return {
     config = function()
       require("lualine").setup({
         options = {
-          theme = "catppuccin",
+          theme = "catppuccin-nvim",  -- follows the active flavour
           component_separators = { left = "", right = "" },
           section_separators = { left = "", right = "" },
           globalstatus = true,  -- single statusline across all splits
@@ -234,11 +234,18 @@ return {
         { "<leader>g",  group = "Git" },
         { "<leader>h",  group = "Harpoon" },
         { "<leader>l",  group = "LSP" },
+        { "<leader>r",  group = "Refactor" },
         { "<leader>s",  group = "Split" },
         { "<leader>t",  group = "Terminal" },
         { "<leader>x",  group = "Diagnostics (Trouble)" },
       })
     end,
+    keys = {
+      -- The full menu opens on any prefix (<leader>, g, ], z…) after `delay`;
+      -- <leader>fk searches every keymap with Telescope
+      { "<leader>?", function() require("which-key").show({ global = false }) end,
+        desc = "Keymaps for this buffer (LSP, git…)" },
+    },
   },
 
   -- ── Aerial: code outline (like VSCode OUTLINE panel) ──────

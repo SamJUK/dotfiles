@@ -67,14 +67,33 @@ opt.shortmess:append("c")  -- don't show "match x of y" in completion
 
 -- ── Folding (treesitter-powered) ─────────────────────────────
 opt.foldmethod = "expr"
-opt.foldexpr = "nvim_treesitter#foldexpr()"
+opt.foldexpr = "v:lua.vim.treesitter.foldexpr()"
 opt.foldlevel = 99          -- open all folds by default
 
--- ── Encoding ─────────────────────────────────────────────────
-opt.encoding = "utf-8"
-opt.fileencoding = "utf-8"
-
 -- ── Misc ─────────────────────────────────────────────────────
-opt.formatoptions:remove({ "c", "r", "o" })  -- don't auto-insert comment leader on newline
-opt.iskeyword:append("-")   -- treat hyphenated-words as one word
+-- formatoptions and hyphenated-word iskeyword are set per filetype in autocmds.lua
 opt.fillchars = { eob = " " }  -- hide ~ on empty lines at end of buffer
+
+-- ── Filetypes Neovim doesn't detect on its own ───────────────
+vim.filetype.add({
+  extension = {
+    tf = "terraform",  -- default is TinyFugue
+    j2 = "jinja",
+  },
+  pattern = {
+    -- Ansible (ansiblels only attaches to yaml.ansible)
+    [".*/roles/[^/]+/tasks/.*%.ya?ml"]    = "yaml.ansible",
+    [".*/roles/[^/]+/handlers/.*%.ya?ml"] = "yaml.ansible",
+    [".*/roles/[^/]+/defaults/.*%.ya?ml"] = "yaml.ansible",
+    [".*/roles/[^/]+/vars/.*%.ya?ml"]     = "yaml.ansible",
+    [".*/roles/[^/]+/meta/.*%.ya?ml"]     = "yaml.ansible",
+    [".*/playbooks[^/]*/.*%.ya?ml"]       = "yaml.ansible",
+    [".*/playbook[^/]*%.ya?ml"]           = "yaml.ansible",
+    [".*/group_vars/.*%.ya?ml"]           = "yaml.ansible",
+    [".*/host_vars/.*%.ya?ml"]            = "yaml.ansible",
+    -- Docker Compose
+    ["docker%-compose.*%.ya?ml"]          = "yaml.docker-compose",
+    ["compose%.ya?ml"]                    = "yaml.docker-compose",
+    ["compose%.[%w-]+%.ya?ml"]            = "yaml.docker-compose",
+  },
+})

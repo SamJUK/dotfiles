@@ -9,16 +9,11 @@ local autocmd = vim.api.nvim_create_autocmd
 autocmd("TextYankPost", {
   group = augroup("highlight_yank", { clear = true }),
   callback = function()
-    vim.highlight.on_yank({ higroup = "IncSearch", timeout = 150 })
+    vim.hl.on_yank({ higroup = "IncSearch", timeout = 150 })
   end,
 })
 
--- ── Remove trailing whitespace on save ───────────────────────
-autocmd("BufWritePre", {
-  group = augroup("trim_whitespace", { clear = true }),
-  pattern = "*",
-  command = [[%s/\s\+$//e]],
-})
+-- Trailing whitespace is trimmed on save by conform.nvim (diagnostics.lua)
 
 -- ── Equalise splits when Neovim window is resized ────────────
 autocmd("VimResized", {
@@ -50,13 +45,25 @@ autocmd("BufWritePre", {
   end,
 })
 
--- ── PHP: use 4-space indentation (PSR-12 standard) ───────────
+-- ── 4-space default: PHP (PSR-12), Magento XML, and shell ────
+-- Only a default for new files: guess-indent.nvim then matches each
+-- existing file's own indentation, and .editorconfig beats both
 autocmd("FileType", {
-  group = augroup("php_settings", { clear = true }),
-  pattern = "php",
+  group = augroup("four_space_indent", { clear = true }),
+  pattern = { "php", "xml", "sh", "bash" },
   callback = function()
     vim.opt_local.tabstop = 4
     vim.opt_local.shiftwidth = 4
+  end,
+})
+
+-- ── Treat hyphenated-words as one word where names are kebab-case
+-- (not globally: in PHP `ciw` on $this->foo would eat the `-`) ──
+autocmd("FileType", {
+  group = augroup("kebab_case_words", { clear = true }),
+  pattern = { "css", "scss", "less", "html" },
+  callback = function()
+    vim.opt_local.iskeyword:append("-")
   end,
 })
 
