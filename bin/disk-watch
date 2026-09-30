@@ -1,0 +1,29 @@
+#!/bin/bash
+# Flags a stale Time Machine local snapshot (pins deleted blocks) or low free space on the Data volume.
+vol=/System/Volumes/Data
+max_age_days=${MAX_AGE_DAYS:-2}
+min_free_gb=${MIN_FREE_GB:-50}
+dev=$(df "$vol" | awk 'NR==2 {sub("/dev/", "", $1); print $1}')
+now=$(date +%s)
+problems=()
+
+while read -r name; do
+  stamp=${name#com.apple.TimeMachine.}
+  stamp=${stamp%.backup}
+  ts=$(date -j -f %Y-%m-%d-%H%M%S "$stamp" +%s 2>/dev/null) || continue
+  (( now - ts > max_age_days * 86400 )) &&
+    problems+=("Stale Time Machine snapshot $stamp. Fix: sudo diskutil apfs deleteSnapshot $dev -name $name (then check the TrueNAS destination: tmutil destinationinfo)")
+done < <(diskutil apfs listSnapshots "$dev" | awk '/Name:/ {print $2}')
+
+free_gb=$(df -g "$vol" | awk 'NR==2 {print $4}')
+(( free_gb < min_free_gb )) &&
+  problems+=("Only ${free_gb}GB free. Check: docker system df; du -xsh ~/Projects ~/Library; ~/.Trash")
+
+alert=~/.cache/disk-watch.alert
+if (( ! ${#problems[@]} )); then
+  rm -f "$alert"
+  exit 0
+fi
+printf '%s\n' "${problems[@]}" | tee "$alert"
+osascript -e "display notification \"${problems[0]//\"/\'}\" with title \"disk-watch\" subtitle \"Run disk-watch in a terminal for the fix\""
+exit 1
