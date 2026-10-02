@@ -49,6 +49,8 @@ fi
 
 export PATH="$HOME/"'.magento-cloud/bin':"$PATH"
 if [ -f "$HOME/"'.magento-cloud/shell-config.rc' ]; then . "$HOME/"'.magento-cloud/shell-config.rc'; fi # END SNIPPET
+# magento-cloud runs ssh itself, bypassing Ghostty's ssh-env wrapper; remotes lack xterm-ghostty.
+alias magento-cloud='TERM=xterm-256color magento-cloud'
 
 export PYENV_ROOT="$HOME/.pyenv"
 [[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"

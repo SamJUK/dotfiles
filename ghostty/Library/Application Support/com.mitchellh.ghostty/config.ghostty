@@ -22,6 +22,10 @@ confirm-close-surface = false
 
 # --- Shell ---
 shell-integration = detect
+# Remote hosts lack xterm-ghostty terminfo; ssh gets xterm-256color, local keeps xterm-ghostty.
+shell-integration-features = ssh-env
+# Fallback if ssh-env isn't enough (applies locally too):
+# term = xterm-256color
 
 # --- macOS ---
 macos-option-as-alt = true
@@ -38,4 +42,4 @@ keybind = alt+delete=text:\x1bd
 
 
 # Claude spams bells when terminal not focused.
-bell-features = no
+bell-features = no-attention,no-title
