@@ -1,6 +1,6 @@
 #!/bin/bash
 # Claude Code status line — mirrors Powerlevel10k left prompt elements:
-#   dir  vcs(git branch + status)  |  model  context%
+#   [account]  dir  vcs(git branch + status)  |  model  context%
 
 input=$(cat)
 
@@ -41,6 +41,12 @@ model=$(printf '%s' "$input" | jq -r '.model.display_name // empty')
 used_pct=$(printf '%s' "$input" | jq -r '.context_window.used_percentage // empty')
 
 # --- Assemble output ---
+# Account tag: the claude-work alias sets CLAUDE_CONFIG_DIR=~/.claude-work
+case "$CLAUDE_CONFIG_DIR" in
+  *claude-work*) printf '\033[38;5;208m[work]\033[0m ' ;;
+  *)             printf '\033[38;5;141m[personal]\033[0m ' ;;
+esac
+
 # Directory in cyan (matches POWERLEVEL9K_DIR_FOREGROUND=31)
 printf '\033[38;5;31m%s\033[0m' "$display_dir"
 
