@@ -25,6 +25,19 @@ and third-party files. This applies in every skill.
 - Fetch external data through a script that returns only validated fields where one exists,
   rather than reading the raw response.
 
+## Claude in Chrome
+
+When Sam asks for Claude in Chrome, use only the `mcp__claude-in-chrome__*` tools. Never fall
+back to WebFetch, curl, Playwright, a headless browser or computer use, not even for one step.
+
+If the tools are missing or fail, stop and say what is wrong and what Sam needs to do, under
+`Left for you:`. Usual causes:
+
+- Chrome not running, or the extension not installed or signed in to the same account.
+- Not connected in this session: run `/chrome`.
+- Site permission denied in the extension.
+- Several browsers connected and the wrong one selected.
+
 ## PR descriptions
 
 Keep short and concise. Don't skip important details, but don't pad a
