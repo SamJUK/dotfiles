@@ -59,6 +59,10 @@ printf ' \033[38;5;242m|\033[0m'
 # Model
 [ -n "$model" ] && printf ' \033[38;5;103m%s\033[0m' "$model"
 
+# Effort, capitalised (absent when the model doesn't support it)
+effort=$(printf '%s' "$input" | jq -r '.effort.level // empty | (.[:1] | ascii_upcase) + .[1:]')
+[ -n "$effort" ] && printf ' \033[38;5;141m%s\033[0m' "$effort"
+
 # Context usage
 if [ -n "$used_pct" ]; then
   used_int=$(printf '%.0f' "$used_pct")
@@ -72,3 +76,40 @@ if [ -n "$used_pct" ]; then
   fi
   printf ' \033[38;5;%dm%d%%\033[0m' "$ctx_color" "$used_int"
 fi
+
+# Usage left + reset time per window (absent until first response, subscribers only)
+for window in five_hour seven_day; do
+  used=$(printf '%s' "$input" | jq -r ".rate_limits.$window.used_percentage // empty")
+  [ -z "$used" ] && continue
+  resets_at=$(printf '%s' "$input" | jq -r ".rate_limits.$window.resets_at // empty")
+  left=$(printf '%.0f' "$(echo "100 - $used" | bc)")
+  # Colour: green >50% left, yellow 20-50%, red <20%
+  if [ "$left" -gt 50 ]; then
+    left_color=76
+  elif [ "$left" -gt 20 ]; then
+    left_color=178
+  else
+    left_color=160
+  fi
+  # 5h resets today-ish → time; 7d resets days out → day of month
+  reset=""
+  if [ "$window" = five_hour ]; then
+    label=5h
+    [ -n "$resets_at" ] && reset=$(date -r "$resets_at" +%H:%M)
+  else
+    label=7d
+    if [ -n "$resets_at" ]; then
+      day=$(date -r "$resets_at" +%-d)
+      case "$day" in
+        11|12|13) suffix=th ;;
+        *1) suffix=st ;;
+        *2) suffix=nd ;;
+        *3) suffix=rd ;;
+        *) suffix=th ;;
+      esac
+      reset="$(date -r "$resets_at" +%a) $day$suffix"
+    fi
+  fi
+  printf ' \033[38;5;242m| %s\033[0m \033[38;5;%dm%d%%\033[0m' "$label" "$left_color" "$left"
+  [ -n "$reset" ] && printf ' \033[38;5;242m%s\033[0m' "$reset"
+done
