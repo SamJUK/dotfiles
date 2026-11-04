@@ -43,3 +43,11 @@ keybind = alt+delete=text:\x1bd
 
 # Claude spams bells when terminal not focused.
 bell-features = no-attention,no-title
+
+
+# --- quick terminal ---
+keybind = global:§=toggle_quick_terminal
+quick-terminal-position = top
+quick-terminal-size = 40%
+quick-terminal-autohide = true
+quick-terminal-screen = mouse
