@@ -108,6 +108,13 @@ Always generate commit messages using Conventional Commits:
 
 Use `!` and a `BREAKING CHANGE:` footer for breaking changes. Write the summary in the imperative, aiming for 50 characters and 72 at most. Leave a blank line after it, then hard-wrap the body at 72.
 
+## Markdown files
+
+In new or fully rewritten prose files in a repo (docs, plans, posts), put one sentence per
+source line rather than hard-wrapping, with a blank line between paragraphs. Tables, URLs and
+code blocks are exempt. When editing an existing file, match its wrapping. Never rewrap
+generated files such as a CHANGELOG.
+
 ## Verifying your own work
 
 - **Every negative test needs a positive control in the same run.** "The thing I
@@ -123,6 +130,13 @@ Use `!` and a `BREAKING CHANGE:` footer for breaking changes. Write the summary 
 - **Read the framework source rather than reasoning about its behaviour.** If a
   conclusion rests on what a vendor class does, open it. Assumptions about core
   behaviour are wrong often enough to be worth the minute.
+- **Screenshot every UI change for review.** A UI change is anything a person sees: templates,
+  CSS, emails, admin screens, CLI or TUI output. Capture the real page with it in place (not a
+  mock-up), with whatever browser tooling the session has, at phone width (390px) and desktop
+  (1280px), plus any state it adds (open, error, after a click). Save them in
+  `.claude/docs/screenshots/`, look at them yourself, then give Sam the full paths. If you
+  cannot capture one (production only, behind a login, no browser), say so and say what Sam
+  needs to check.
 - **Don't state an unverified premise as fact when briefing a subagent.** Ask it
   to check the premise; it will otherwise build on it.
 - Report what was actually verified and how, and say plainly what was not.
