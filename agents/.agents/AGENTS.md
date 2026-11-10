@@ -63,6 +63,25 @@ Keep short and concise. Don't skip important details, but don't pad a
 simple fix with a wall of text — match length to the change. A one-line
 fix gets a one/two-line description, not a full Summary/Test plan essay.
 
+## Repo docs and agent files
+
+- `README.md` is for humans and agents alike: what it is, how to set it up, run, test and
+  deploy it, and where prod is.
+- Agent instructions go in a committed `AGENTS.md`, never `CLAUDE.md`, so every tool reads
+  them (Claude Code reads `AGENTS.md` when a repo has no `CLAUDE.md`). It holds only what a
+  newcomer would not guess: hard rules, traps, access. Nothing that repeats these global rules.
+- Commit to `docs/` only what describes the system as it is now and a newcomer could not get
+  from the code in a few minutes: architecture (boundaries, data flow, data model), runbooks
+  (deploy, restore, incident), API reference, security model. One topic per file, named for
+  the topic. Update or delete it in the same PR as the code it describes.
+- Anything that records intent, progress or a finding goes in `.claude/docs/` (git-ignored):
+  plans, specs, RFCs, spikes, audits, status ledgers, handoffs, review notes, screenshots.
+  Never commit these, and never link to them from committed files.
+- No glossaries or feature maps that restate the code, and no doc with a status line.
+- Commit `docs/adr/NNNN-slug.md` (or the repo's existing ADR folder) only for a decision with
+  real alternatives and lasting consequences: context, decision, consequences, one page.
+- Task lists live in the project's tracker, not `TODO.md`.
+
 ## Commits
 
 Always generate commit messages using Conventional Commits:

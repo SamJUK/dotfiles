@@ -1,5 +1,14 @@
-**/.claude/settings.local.json
+# Agent files: AGENTS.md is committed. .claude/ is local scratch
+# (plans, specs, audits in .claude/docs/), except the shared config.
 CLAUDE.md
+CLAUDE.local.md
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
+!.claude/rules/
+!.claude/skills/
+!.claude/agents/
+!.claude/commands/
 
 # Compiled Python files
 *.pyc
