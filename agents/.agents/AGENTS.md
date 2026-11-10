@@ -57,11 +57,30 @@ If the tools are missing or fail, stop and say what is wrong and what Sam needs 
 - Site permission denied in the extension.
 - Several browsers connected and the wrong one selected.
 
-## PR descriptions
+## Public and private repos
+
+Check visibility with `gh repo view --json visibility -q .visibility` (or the host's
+equivalent). If you cannot tell, treat the repo as public.
+
+On a public repo, never push (force-push included), delete a remote branch or tag, merge, open,
+edit or close a PR or issue, comment or review, tag, release, publish or delete a package,
+change repo settings (Pages, secrets, visibility), or create or delete a repo without Sam's
+explicit permission for that specific action. Local commits and branches are fine. Approval
+for one action does not cover the next.
+
+On a private repo, feature branches, pushes to them and PRs are fine. Pushing to the default
+branch or merging still needs Sam to ask.
+
+## PR descriptions and web UI text
 
 Keep short and concise. Don't skip important details, but don't pad a
 simple fix with a wall of text — match length to the change. A one-line
 fix gets a one/two-line description, not a full Summary/Test plan essay.
+
+Titles are never wrapped. In descriptions, review replies and anything else typed into a web
+UI (BugHerd, Notion), write each paragraph as one line with a blank line between paragraphs.
+These renderers show every newline, so hard or semantic line breaks look broken. This
+overrides the Markdown files rule below.
 
 ## Repo docs and agent files
 
@@ -87,7 +106,7 @@ fix gets a one/two-line description, not a full Summary/Test plan essay.
 Always generate commit messages using Conventional Commits:
 `<type>[scope][!]: <summary>`
 
-Use `!` and a `BREAKING CHANGE:` footer for breaking changes. Keep summaries short, imperative, and descriptive.
+Use `!` and a `BREAKING CHANGE:` footer for breaking changes. Write the summary in the imperative, aiming for 50 characters and 72 at most. Leave a blank line after it, then hard-wrap the body at 72.
 
 ## Verifying your own work
 
