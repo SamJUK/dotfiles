@@ -123,8 +123,10 @@ brew "pipx"
 brew "pnpm"
 # Object-relational database system
 brew "postgresql@17", restart_service: :changed, link: true
-# Framework for managing multi-language pre-commit hooks
-brew "pre-commit"
+# Python CLIs install through uv on its own standalone Python (see the uv entries
+# at the end). Homebrew's Python links macOS's libexpat, so pyexpat breaks when the
+# OS is older than the one the bottle was built on.
+brew "uv"
 # Monitor data's progress through a pipe
 brew "pv"
 # Python version management
@@ -298,3 +300,5 @@ cargo "diffshot"
 npm "@lhci/cli"
 npm "astro"
 npm "lighthouse"
+# Framework for managing multi-language pre-commit hooks
+uv "pre-commit"
